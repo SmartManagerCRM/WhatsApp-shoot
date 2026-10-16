@@ -43,6 +43,12 @@ interface AttachmentLauncher {
     fun launchShare(shot: StoredScreenshot, expected: ConversationIdentity?, hasher: IdentityHasher, tryDirectSelect: Boolean): LaunchResult
 }
 
+/** Finds and stages (copies to private temporary storage) the newest existing screenshot. Callbacks arrive on the main thread. */
+interface LatestScreenshotProvider {
+    fun find(settings: AutomationSettings, callback: (SelectionResult) -> Unit)
+    fun stage(image: LatestImage, settings: AutomationSettings, callback: (CaptureResult) -> Unit)
+}
+
 enum class DirectSelectOutcome { SELECTED, AMBIGUOUS, NOT_FOUND, TIMEOUT }
 
 enum class StatusMessage {
@@ -50,6 +56,10 @@ enum class StatusMessage {
     CAPTURE_PERMISSION_REQUIRED, CAPTURE_PERMISSION_DENIED, PREPARING_SCREENSHOT, SCREENSHOT_CAPTURED,
     CHECKING_CONVERSATION, PREPARING_ATTACHMENT, ATTACHMENT_READY, MANUAL_CONFIRMATION_REQUIRED, DESTINATION_CHANGED,
     PROTECTED_SCREEN, CAPTURE_FAILED, STORAGE_FAILED, ATTACHMENT_FAILED, WHATSAPP_NOT_INSTALLED, LICENSE_REQUIRED,
+    LOOKING_FOR_SCREENSHOT, LATEST_READY, NO_SCREENSHOT, MEDIA_PERMISSION_REQUIRED, MEDIA_PERMISSION_PARTIAL, SCREENSHOT_UNREADABLE,
+    ALREADY_HANDLED_CHAT, SAME_IMAGE_HANDLED, NOT_NEWER, IDENTITY_UNRELIABLE, NEWER_SCREENSHOT_UNREADABLE,
+    SEND_CONFIRMED, SEND_UNCONFIRMED, AUTO_SEND_AMBIGUOUS, AUTO_SEND_NOT_FOUND, AUTO_SEND_RECIPIENT_MISMATCH,
+    AUTO_SEND_RECIPIENT_UNVERIFIED, AUTO_SEND_UNAVAILABLE, AUTO_SEND_TIMEOUT, CHAT_STATUS_RESET,
 }
 
 data class ControllerState(

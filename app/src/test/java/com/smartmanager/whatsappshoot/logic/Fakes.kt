@@ -70,7 +70,7 @@ fun conversation(title: String? = "Alice", pkg: String = "com.whatsapp", group: 
 fun chatList() = wa("conversations_row_contact_name", cls = "com.whatsapp.HomeActivity")
 fun otherApp() = ScreenSnapshot("com.example.browser")
 
-class Rig(val tmp: File, settings: AutomationSettings = AutomationSettings(mode = CaptureMode.AUTOMATIC), var licensed: Boolean = true) {
+class Rig(val tmp: File, settings: AutomationSettings = AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.AUTOMATIC), var licensed: Boolean = true) {
     val clock = FakeClock()
     val scheduler = FakeScheduler(clock)
     val repo = ScreenshotRepository(File(tmp, "shots"), clock)

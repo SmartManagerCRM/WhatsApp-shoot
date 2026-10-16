@@ -16,13 +16,17 @@ class AutomationController(
     private val observer: ScreenObserver,
     private val launcher: AttachmentLauncher,
     private val scheduler: Scheduler,
-    clock: Clock,
+    private val clock: Clock,
     /** Licensing is a separate subsystem; the controller only asks "may automation run?". */
     private val isLicensed: () -> Boolean,
+    private val latest: LatestScreenshotProvider = NoLatestScreenshots,
+    private val ledger: SentLedger = InMemoryLedger(),
+    /** Per-install secret salt for conversation hashes, so ledger keys stay stable across restarts. */
+    private val identitySalt: ByteArray = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) },
 ) {
     private val machine = AutomationStateMachine()
     private val guard = CaptureGuard(clock)
-    private var hasher = IdentityHasher()
+    private var hasher = IdentityHasher(identitySalt)
 
     private var message = StatusMessage.STOPPED
     private var screenshot: StoredScreenshot? = null
@@ -33,6 +37,11 @@ class AutomationController(
     private var directSelectTimeout: Cancellable? = null
     private var captureDenied = false
     private var captureIdentity: ConversationIdentity? = null
+    private var shotImage: LatestImage? = null
+    private var currentOutgoing: Int? = null
+    private var baselineOutgoing: Int? = null
+    private var shareEngine: ShareFlowEngine? = null
+    private var shareTimeout: Cancellable? = null
 
     var onChange: (() -> Unit)? = null
 
@@ -44,7 +53,7 @@ class AutomationController(
     fun start(): Boolean {
         if (!isLicensed()) return set(StatusMessage.LICENSE_REQUIRED).let { false }
         if (machine.state != AutomationState.INACTIVE) return true
-        hasher = IdentityHasher()
+        hasher = IdentityHasher(identitySalt)
         guard.reset()
         captureDenied = false
         machine.dispatch(AutomationEvent.START)
@@ -55,6 +64,7 @@ class AutomationController(
 
     fun stop() {
         cancelPending()
+        shareEngine = null // emergency stop: nothing further is clicked
         machine.dispatch(AutomationEvent.STOP)
         discardScreenshot()
         currentIdentity = null
@@ -84,11 +94,20 @@ class AutomationController(
     fun onScreen(s: ScreenSnapshot) {
         if (machine.state == AutomationState.INACTIVE || machine.paused) return
         val c = classifier.classify(s)
+        if (settings().imageSource == ImageSource.LATEST_SCREENSHOT && machine.state == AutomationState.ATTACHMENT_READY && handedOffAndLeft(c)) dismiss()
         when {
             c.kind == ScreenKind.IGNORED -> return
             !c.isWhatsApp -> onLeftWhatsApp()
             else -> onWhatsApp(c)
         }
+    }
+
+    /** After a hand-off to WhatsApp, leaving the chat (list, other chat, other app) ends the workflow so the next chat starts clean. */
+    private fun handedOffAndLeft(c: ScreenClassification): Boolean = when (c.kind) {
+        ScreenKind.IGNORED -> false
+        ScreenKind.CHAT_LIST, ScreenKind.NOT_WHATSAPP -> true
+        ScreenKind.CONVERSATION -> shotIdentity?.isKnown == true && !shotIdentity!!.matches(hasher.identityOf(c.headerText))
+        else -> false
     }
 
     private fun onLeftWhatsApp() {
@@ -134,6 +153,7 @@ class AutomationController(
             currentIdentity = id
         }
         conversationType = c.conversationType
+        currentOutgoing = c.outgoingMediaCount
         if (message != StatusMessage.CONVERSATION_DETECTED) set(StatusMessage.CONVERSATION_DETECTED)
         scheduleAutomaticCapture()
     }
@@ -160,7 +180,10 @@ class AutomationController(
         if (machine.state == AutomationState.INACTIVE || machine.paused) return false
         if (!isLicensed()) return set(StatusMessage.LICENSE_REQUIRED).let { false }
         if (!userInitiated && machine.state != AutomationState.CONVERSATION_DETECTED) return false
-        if (!guard.tryBegin(userInitiated)) return false
+        // Reading an existing screenshot needs no throttle (one attempt per conversation visit already prevents loops);
+        // the cooldown protects the screen-capture APIs.
+        if (!guard.tryBegin(userInitiated, useCooldown = settings().imageSource != ImageSource.LATEST_SCREENSHOT)) return false
+        if (settings().imageSource == ImageSource.LATEST_SCREENSHOT) return startLatest(userInitiated)
         // Identity of what is on screen right now (null for a manual capture of an unrecognised screen).
         captureIdentity = if (machine.state == AutomationState.CONVERSATION_DETECTED) currentIdentity else null
         if (!machine.dispatch(AutomationEvent.CAPTURE_STARTED)) {
@@ -217,6 +240,95 @@ class AutomationController(
         if (machine.dispatch(AutomationEvent.CAPTURE_PERMISSION_DENIED)) set(StatusMessage.CAPTURE_PERMISSION_DENIED)
     }
 
+    // ---------------- latest existing screenshot (no new capture) ----------------
+
+    private fun startLatest(userInitiated: Boolean): Boolean {
+        captureIdentity = if (machine.state == AutomationState.CONVERSATION_DETECTED) currentIdentity else null
+        baselineOutgoing = if (machine.state == AutomationState.CONVERSATION_DETECTED) currentOutgoing else null
+        if (!machine.dispatch(AutomationEvent.CAPTURE_STARTED)) {
+            guard.cancelStart()
+            return false
+        }
+        set(StatusMessage.LOOKING_FOR_SCREENSHOT)
+        latest.find(settings()) { handleSelection(it, userInitiated) }
+        return true
+    }
+
+    private fun skipWith(m: StatusMessage) {
+        guard.finish()
+        machine.dispatch(AutomationEvent.CAPTURE_SKIPPED)
+        set(m)
+    }
+
+    private fun handleSelection(r: SelectionResult, userInitiated: Boolean) {
+        if (machine.state != AutomationState.CAPTURING_SCREEN) { guard.finish(); return } // stopped meanwhile
+        when (r) {
+            is SelectionResult.Found -> {
+                val image = r.image
+                // An explicit user request bypasses the repeat-send policy; automatic triggers obey it.
+                val decision = if (userInitiated) SendDecision.Proceed else SendPolicy.decide(settings().sendBehavior, captureIdentity, image, ledger)
+                when (decision) {
+                    is SendDecision.Skip -> skipWith(when (decision.reason) {
+                        SkipReason.ALREADY_HANDLED_CHAT -> StatusMessage.ALREADY_HANDLED_CHAT
+                        SkipReason.SAME_IMAGE_ALREADY_HANDLED -> StatusMessage.SAME_IMAGE_HANDLED
+                        SkipReason.NOT_NEWER -> StatusMessage.NOT_NEWER
+                    })
+                    is SendDecision.NeedManual -> stageLatest(image, forceManual = StatusMessage.IDENTITY_UNRELIABLE)
+                    SendDecision.Proceed -> stageLatest(image, forceManual = if (image.skippedNewer) StatusMessage.NEWER_SCREENSHOT_UNREADABLE else null)
+                }
+            }
+            SelectionResult.NoScreenshots -> skipWith(StatusMessage.NO_SCREENSHOT)
+            SelectionResult.PermissionDenied -> skipWith(StatusMessage.MEDIA_PERMISSION_REQUIRED)
+            SelectionResult.PartialAccess -> skipWith(StatusMessage.MEDIA_PERMISSION_PARTIAL)
+            SelectionResult.AllUnreadable -> skipWith(StatusMessage.SCREENSHOT_UNREADABLE)
+            SelectionResult.Failed -> skipWith(StatusMessage.CAPTURE_FAILED)
+        }
+    }
+
+    private fun stageLatest(image: LatestImage, forceManual: StatusMessage?) {
+        latest.stage(image, settings()) { res ->
+            if (machine.state != AutomationState.CAPTURING_SCREEN) {
+                (res as? CaptureResult.Saved)?.let { repository.delete(it.shot) }
+                guard.finish(); return@stage
+            }
+            guard.finish()
+            when (res) {
+                is CaptureResult.Saved -> {
+                    discardScreenshot()
+                    screenshot = res.shot
+                    shotIdentity = captureIdentity
+                    shotImage = image
+                    machine.dispatch(AutomationEvent.CAPTURE_SUCCEEDED)
+                    if (forceManual != null) set(forceManual) else {
+                        set(StatusMessage.LATEST_READY)
+                        requestAttach() // verify the destination again, then open WhatsApp sharing
+                    }
+                }
+                is CaptureResult.Failed -> fail(if (res.reason == FailureReason.STORAGE) StatusMessage.STORAGE_FAILED else StatusMessage.CAPTURE_FAILED)
+                else -> fail(StatusMessage.CAPTURE_FAILED)
+            }
+        }
+    }
+
+    /** A new image appeared in the media library. Only acts in mode C while a conversation is open and idle. */
+    fun onNewScreenshotAvailable() {
+        val st = settings()
+        if (machine.state == AutomationState.INACTIVE || machine.paused) return
+        if (st.imageSource != ImageSource.LATEST_SCREENSHOT || st.sendBehavior != SendBehavior.NEW_SCREENSHOT_ONLY) return
+        if (machine.state != AutomationState.CONVERSATION_DETECTED || guard.isCapturing) return
+        cancelPending()
+        guard.conversationLeft() // a new image makes this a fresh opportunity within the same visit
+        scheduleAutomaticCapture()
+    }
+
+    /** "Reset status" for the conversation that is open now. */
+    fun resetCurrentChatStatus(): Boolean {
+        val key = currentIdentity?.key ?: return false
+        ledger.resetChat(key); guard.conversationLeft(); set(StatusMessage.CHAT_STATUS_RESET); return true
+    }
+
+    fun resetAllChatStatus() { ledger.resetAll(); set(StatusMessage.CHAT_STATUS_RESET) }
+
     // ---------------- attachment ----------------
 
     /** "Attach to WhatsApp": re-checks the destination, then opens WhatsApp's share UI. Never sends. */
@@ -227,7 +339,9 @@ class AutomationController(
         when (DestinationVerifier.check(shotIdentity, observer.currentScreen(), hasher)) {
             DestinationCheck.VERIFIED -> {
                 machine.dispatch(AutomationEvent.VERIFIED)
-                prepareAttachment(shot, direct = settings().directSelectExperimental)
+                // Pressing Send ourselves needs an explicit opt-in, a reliable identity and an unambiguous "latest" image.
+                val autoSend = settings().fullyAutomaticSend && shotIdentity?.isKnown == true && shotImage?.skippedNewer == false
+                prepareAttachment(shot, direct = autoSend || settings().directSelectExperimental, allowSend = autoSend)
             }
             DestinationCheck.CHANGED -> {
                 machine.dispatch(AutomationEvent.VERIFY_CHANGED)
@@ -244,15 +358,18 @@ class AutomationController(
     fun confirmAndShareManually() {
         val shot = screenshot ?: return
         if (!machine.dispatch(AutomationEvent.USER_CONFIRMED_DESTINATION)) return
-        prepareAttachment(shot, direct = false)
+        prepareAttachment(shot, direct = false, allowSend = false)
     }
 
-    private fun prepareAttachment(shot: StoredScreenshot, direct: Boolean) {
+    private fun prepareAttachment(shot: StoredScreenshot, direct: Boolean, allowSend: Boolean = false) {
         set(StatusMessage.PREPARING_ATTACHMENT)
         when (val r = launcher.launchShare(shot, shotIdentity, hasher, direct)) {
             is LaunchResult.Launched -> if (r.directSelectPending) {
-                directSelectTimeout = scheduler.schedule(DIRECT_SELECT_TIMEOUT_MS) { onDirectSelectionResult(DirectSelectOutcome.TIMEOUT) }
+                shareEngine = ShareFlowEngine(shotIdentity, hasher, allowSend, baselineOutgoing)
+                val limit = if (allowSend) SEND_FLOW_TIMEOUT_MS else DIRECT_SELECT_TIMEOUT_MS
+                shareTimeout = scheduler.schedule(limit) { onShareOutcome(shareEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
             } else {
+                record(LedgerStatus.PREPARED)
                 machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED)
                 set(StatusMessage.ATTACHMENT_READY)
             }
@@ -274,6 +391,50 @@ class AutomationController(
         }
     }
 
+    // ---- share-flow driving (called by the accessibility layer) ----
+
+    /** True while the accessibility layer should keep reporting WhatsApp's share screens. */
+    val shareFlowActive: Boolean get() = shareEngine != null && machine.state == AutomationState.PREPARING_ATTACHMENT
+
+    /** Feed what WhatsApp shows now; returns the click to perform, if any. Stops acting the moment automation is stopped. */
+    fun shareStep(view: ShareScreenView): ShareAction? {
+        val e = shareEngine ?: return null
+        if (machine.state != AutomationState.PREPARING_ATTACHMENT || machine.paused) { shareEngine = null; return null }
+        val a = e.step(view)
+        if (a is ShareAction.Done) onShareOutcome(a.outcome)
+        return a
+    }
+
+    fun shareClickPerformed() {
+        val a = shareEngine?.afterClick()
+        if (a is ShareAction.Done) onShareOutcome(a.outcome)
+    }
+
+    fun onShareOutcome(o: ShareOutcome) {
+        if (machine.state != AutomationState.PREPARING_ATTACHMENT) return
+        shareTimeout?.cancel(); shareTimeout = null; shareEngine = null
+        when (o) {
+            ShareOutcome.ROW_SELECTED -> { record(LedgerStatus.PREPARED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.ATTACHMENT_READY) }
+            ShareOutcome.SENT_CONFIRMED -> { record(LedgerStatus.SENT_CONFIRMED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.SEND_CONFIRMED) }
+            ShareOutcome.SENT_UNCONFIRMED -> { record(LedgerStatus.SENT_UNCONFIRMED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.SEND_UNCONFIRMED) }
+            ShareOutcome.ABORT_AMBIGUOUS -> attachmentFailed(StatusMessage.AUTO_SEND_AMBIGUOUS)
+            ShareOutcome.ABORT_NOT_FOUND -> attachmentFailed(StatusMessage.AUTO_SEND_NOT_FOUND)
+            ShareOutcome.ABORT_RECIPIENT_MISMATCH -> attachmentFailed(StatusMessage.AUTO_SEND_RECIPIENT_MISMATCH)
+            ShareOutcome.ABORT_RECIPIENT_UNVERIFIED -> attachmentFailed(StatusMessage.AUTO_SEND_RECIPIENT_UNVERIFIED)
+            ShareOutcome.ABORT_SEND_UNAVAILABLE -> attachmentFailed(StatusMessage.AUTO_SEND_UNAVAILABLE)
+            ShareOutcome.ABORT_TIMEOUT -> attachmentFailed(StatusMessage.AUTO_SEND_TIMEOUT)
+            ShareOutcome.ABORT_STOPPED -> attachmentFailed(StatusMessage.STOPPED)
+        }
+    }
+
+    private fun record(status: LedgerStatus) {
+        val chat = shotIdentity?.key ?: return
+        val image = shotImage ?: return
+        ledger.record(chat, image.key, image.dateMs, status, clockNow())
+    }
+
+    private val clockNow: () -> Long = { clock.nowMs() }
+
     private fun attachmentFailed(m: StatusMessage) {
         machine.dispatch(AutomationEvent.ATTACHMENT_FAILED)
         set(m)
@@ -287,6 +448,8 @@ class AutomationController(
         if (settings().deleteWhenWorkflowEnds) discardScreenshot() else { screenshot = null }
         shotIdentity = null
         captureIdentity = null
+        shotImage = null
+        shareEngine = null
         if (machine.dispatch(AutomationEvent.DISMISS)) set(StatusMessage.WAITING_FOR_WHATSAPP)
     }
 
@@ -307,6 +470,7 @@ class AutomationController(
     private fun cancelPending() {
         pendingAutoCapture?.cancel(); pendingAutoCapture = null
         directSelectTimeout?.cancel(); directSelectTimeout = null
+        shareTimeout?.cancel(); shareTimeout = null
     }
 
     private fun set(m: StatusMessage) {
@@ -326,5 +490,13 @@ class AutomationController(
 
     companion object {
         const val DIRECT_SELECT_TIMEOUT_MS = 15_000L
+        const val SEND_FLOW_TIMEOUT_MS = 25_000L
     }
+}
+
+
+private object NoLatestScreenshots : LatestScreenshotProvider {
+    override fun find(settings: AutomationSettings, callback: (SelectionResult) -> Unit) = callback(SelectionResult.NoScreenshots)
+    override fun stage(image: LatestImage, settings: AutomationSettings, callback: (CaptureResult) -> Unit) =
+        callback(CaptureResult.Failed(FailureReason.UNSUPPORTED))
 }

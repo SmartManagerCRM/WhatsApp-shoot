@@ -18,7 +18,7 @@ class CaptureGuard(private val clock: Clock, private val cooldownMs: Long = DEFA
     val currentVisitHandled: Boolean get() = visitHandled
 
     /** Returns true if a capture may start now, and marks one as in flight. */
-    fun tryBegin(userInitiated: Boolean): Boolean {
+    fun tryBegin(userInitiated: Boolean, useCooldown: Boolean = true): Boolean {
         val now = clock.nowMs()
         if (inFlight) return false
         if (userInitiated) {
@@ -26,7 +26,7 @@ class CaptureGuard(private val clock: Clock, private val cooldownMs: Long = DEFA
             lastUserBegin = now
         } else {
             if (visitHandled) return false
-            if (now - lastFinishedAt < cooldownMs) return false
+            if (useCooldown && now - lastFinishedAt < cooldownMs) return false
         }
         inFlight = true
         return true

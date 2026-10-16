@@ -15,8 +15,12 @@
     <string name="action_stop">Stop</string>
     <string name="action_attach">Attach to WhatsApp</string>
 
-    <string name="floating_label">Capture</string>
-    <string name="floating_description">Capture the current screen with Screenshot Assistant</string>
+    <string name="floating_label">Screenshot</string>
+    <string name="floating_stop">Stop</string>
+    <string name="floating_stop_description">Stop Screenshot Assistant automation immediately</string>
+    <string name="notif_share_title">Open WhatsApp sharing</string>
+    <string name="notif_share_text">Android blocked opening it automatically. Tap to continue with your latest screenshot.</string>
+    <string name="floating_description">Prepare the latest screenshot for this chat</string>
 
     <string name="status_stopped">Automation stopped</string>
     <string name="status_paused">Automation paused</string>
@@ -53,4 +57,25 @@
     <string name="license_err_key_missing">The activation on this phone is no longer valid (reinstalled app, cleared data or copied installation). See the recovery instructions.</string>
     <string name="license_err_keystore">This phone could not create a secure key. Activation is not possible on this device.</string>
     <string name="license_err_storage">Activation could not be saved. Check free storage space.</string>
+
+    <string name="status_looking">Looking for your latest screenshot</string>
+    <string name="status_latest_ready">Latest screenshot found</string>
+    <string name="status_no_screenshot">No screenshot found in the Screenshots folder</string>
+    <string name="status_media_permission">Photo access is needed to read your screenshots. Open the app and allow it.</string>
+    <string name="status_media_partial">Only some photos are shared with the app. Allow access to all photos so the newest screenshot can be found.</string>
+    <string name="status_unreadable">The latest screenshot could not be read</string>
+    <string name="status_already_chat">Already handled for this chat. Reset its status to send again.</string>
+    <string name="status_same_image">This screenshot was already handled for this chat</string>
+    <string name="status_not_newer">No newer screenshot than the one already handled for this chat</string>
+    <string name="status_identity_unreliable">This chat could not be identified reliably. Manual confirmation required.</string>
+    <string name="status_newer_unreadable">Your newest screenshot could not be read, so an older one was found. Check it before attaching.</string>
+    <string name="status_send_confirmed">Sent. WhatsApp shows a new outgoing image in this chat.</string>
+    <string name="status_send_unconfirmed">Send was tapped but could not be confirmed. Please check the chat.</string>
+    <string name="status_auto_ambiguous">Several chats match this name. Choose the chat yourself.</string>
+    <string name="status_auto_not_found">The chat was not found in WhatsApp\'s list. Choose it yourself.</string>
+    <string name="status_auto_mismatch">WhatsApp showed a different recipient. Nothing was sent.</string>
+    <string name="status_auto_unverified">The recipient could not be verified. Nothing was sent.</string>
+    <string name="status_auto_unavailable">WhatsApp\'s Send button was not available. Nothing was sent.</string>
+    <string name="status_auto_timeout">WhatsApp did not respond in time. Finish manually.</string>
+    <string name="status_chat_reset">Status reset</string>
 </resources>

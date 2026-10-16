@@ -27,6 +27,7 @@ enum class AutomationEvent {
     CAPTURE_STARTED,
     CAPTURE_SUCCEEDED,
     CAPTURE_FAILED,
+    CAPTURE_SKIPPED,
     CAPTURE_PERMISSION_DENIED,
     VERIFY_REQUESTED,
     VERIFIED,
@@ -62,6 +63,7 @@ enum class AutomationEvent {
  * CAPTURE_PERMISSION_REQUIRED --CAPTURE_STARTED-->          CAPTURING_SCREEN   (permission arrived)
  * CAPTURING_SCREEN            --CAPTURE_SUCCEEDED-->        SCREENSHOT_READY
  * CAPTURING_SCREEN            --CAPTURE_FAILED-->           ERROR
+ * CAPTURING_SCREEN            --CAPTURE_SKIPPED-->          CONVERSATION_DETECTED (policy said "nothing to send", or no screenshot)
  * CAPTURING_SCREEN            --CAPTURE_PERMISSION_MISSING--> CAPTURE_PERMISSION_REQUIRED
  * SCREENSHOT_READY            --VERIFY_REQUESTED-->         VERIFYING_CONVERSATION
  * SCREENSHOT_READY            --CAPTURE_STARTED-->          CAPTURING_SCREEN   (deliberate re-capture)
@@ -156,6 +158,7 @@ class AutomationStateMachine {
                 AutomationState.CAPTURING_SCREEN -> when (e) {
                     AutomationEvent.CAPTURE_SUCCEEDED -> AutomationState.SCREENSHOT_READY
                     AutomationEvent.CAPTURE_FAILED -> AutomationState.ERROR
+                    AutomationEvent.CAPTURE_SKIPPED -> AutomationState.CONVERSATION_DETECTED
                     AutomationEvent.CAPTURE_PERMISSION_MISSING -> AutomationState.CAPTURE_PERMISSION_REQUIRED
                     else -> null
                 }

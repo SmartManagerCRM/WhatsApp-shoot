@@ -1,6 +1,15 @@
 # User manual
 
-## What it does
+## What it does (latest-screenshot mode, the default)
+When you open a WhatsApp chat, the app takes **your most recent existing screenshot** from the Screenshots folder (it does not take a new one), and opens WhatsApp's share screen
+with it for that chat. By default **you press Send**. Allow photo access when asked.
+
+**Settings > Automatic sending behavior**: *Every chat open* (each time you open a chat), *Once per chat* (until you reset that chat's status on the main screen), *New screenshot only*
+(only a screenshot not yet handled for that chat). If the app cannot reliably tell which chat is open, it asks you to confirm. **Stop** is always available (notification and the red button in WhatsApp).
+**Fully automatic sending** (off by default; Settings shows a warning) lets the app press Send itself, only after the chat and WhatsApp's recipient screen match; it says "Sent" only when it can see a new outgoing image,
+otherwise "could not be confirmed". Taking a *new* screenshot instead is available under Settings > Image source.
+
+## What it does (original mode: capture a new screenshot)
 When you open a WhatsApp chat, Screenshot Assistant can capture your whole screen, show you the picture, and open WhatsApp's share screen with that picture
 ready. **You** pick the chat and press Send. The app never sends anything.
 

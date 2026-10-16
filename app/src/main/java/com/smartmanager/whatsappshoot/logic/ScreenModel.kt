@@ -11,6 +11,10 @@ class ScreenSnapshot(
     val viewIds: Set<String> = emptySet(),
     val headerText: String? = null,
     val windowClassName: String? = null,
+    /** Number of outgoing media messages currently visible (evidence that something was sent). */
+    val outgoingMediaCount: Int? = null,
+    /** Share-flow details, only filled by the service while a share flow is running. */
+    val share: ShareScreenView? = null,
 ) {
     // No toString() override that would print headerText.
     override fun toString(): String = "ScreenSnapshot(package=$packageName, window=$windowClassName, ids=${viewIds.size})"
@@ -37,6 +41,7 @@ data class ScreenClassification(
     val kind: ScreenKind,
     val conversationType: ConversationType = ConversationType.UNKNOWN,
     val headerText: String? = null,
+    val outgoingMediaCount: Int? = null,
 ) {
     val isWhatsApp: Boolean
         get() = kind != ScreenKind.IGNORED && kind != ScreenKind.NOT_WHATSAPP
@@ -73,6 +78,14 @@ data class WhatsAppProfile(
     val shareRowTitleIds: Set<String> = setOf("contactpicker_row_name"),
     /** Window class of WhatsApp's share target list. */
     val shareListClasses: Set<String> = setOf("com.whatsapp.ContactPicker"),
+    /** WhatsApp's "send to" confirmation/preview screen after a recipient was chosen. */
+    val sharePreviewClasses: Set<String> = setOf("com.whatsapp.mediaview.MediaComposerActivity", "com.whatsapp.mediacomposer.MediaComposerActivity"),
+    /** View showing the recipient name on that screen. */
+    val sharePreviewRecipientIds: Set<String> = setOf("recipients", "send_to_text"),
+    /** WhatsApp's own send button; only ever tapped when fully automatic sending is enabled AND the recipient matched. */
+    val sendButtonIds: Set<String> = setOf("send"),
+    /** Outgoing media message bubbles in a conversation. */
+    val outgoingMediaIds: Set<String> = setOf("image_message_outgoing", "main_image_outgoing"),
 )
 
 class ScreenClassifier(private val profile: WhatsAppProfile = WhatsAppProfile(), private val ownPackage: String = "") {
@@ -101,7 +114,7 @@ class ScreenClassifier(private val profile: WhatsAppProfile = WhatsAppProfile(),
                 idHit(profile.individualMarkerIds) -> ConversationType.INDIVIDUAL
                 else -> ConversationType.UNKNOWN
             }
-            return ScreenClassification(ScreenKind.CONVERSATION, type, s.headerText)
+            return ScreenClassification(ScreenKind.CONVERSATION, type, s.headerText, s.outgoingMediaCount)
         }
         if (clsHit(profile.settingsClasses) || idHit(profile.settingsIds)) return ScreenClassification(ScreenKind.SETTINGS)
         if (idHit(profile.callsIds)) return ScreenClassification(ScreenKind.CALLS)

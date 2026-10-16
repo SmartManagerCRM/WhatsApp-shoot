@@ -12,7 +12,7 @@ This report separates three kinds of evidence. Nothing in the second or third co
 | **B. Compile check (PASSED)** | Android platform sources type-check against the real Android 34 API. Proves they compile, not that they behave. |
 | **C. Not run** | Gradle build, APK packaging, Compose UI compilation, emulator or physical-device behaviour. |
 
-## A. Automated JVM tests: 126 tests, 0 failures
+## A. Automated JVM tests: 185 tests, 0 failures
 
 Run with `scripts/run-jvm-tests.sh` (or `scripts/jvm-tests-quick.sh` in the authoring sandbox).
 
@@ -25,6 +25,10 @@ Run with `scripts/run-jvm-tests.sh` (or `scripts/jvm-tests-quick.sh` in the auth
 | `ClassifierAndIdentityTest` | 14 | screen classification (synthetic snapshots), Business variant, destination verification, unambiguous share-row selection, hashed identity |
 | `RepositoryAndGuardTest` | 7 | atomic save, retention cleanup that never deletes foreign files, storage failure, duplicate-capture guard |
 | `ControllerTest` | 45 | full automation workflow with fakes (see matrices) |
+| `ScreenshotSelectionTest` | 11 | latest-screenshot selection: Screenshots-folder-only, formats, pending/trashed/empty, date fallbacks, deleted/unreadable latest, permission states, identical files |
+| `SendPolicyTest` | 7 | the three sending behaviors, per-chat independence, unreliable identity, persistent ledger |
+| `ShareFlowTest` | 7 | share-screen engine: one-row selection, recipient check before Send, confirmed vs unconfirmed, timeout, stop |
+| `LatestWorkflowTest` | 26 | end-to-end workflow with fakes (see matrix below) |
 | `PolicyTest` | 11 | static checks: no INTERNET permission, no network APIs, no backup, FileProvider scope, no logging, no `Send` automation, no private key committed, signing code absent from the app |
 
 Sensitivity check: deleting the signature check in `LicenseVerifier` makes 3 tests fail (performed once, by hand).
@@ -33,7 +37,27 @@ Also executed manually (not a unit test): the packaged `dist/license-tool.jar` w
 `verify` (valid), `verify` on a tampered file (`BAD_SIGNATURE`), and `issue` with a wrong passphrase (rejected). SHA-256 of the jar
 built in this session starts `1cbf5345...`.
 
-### Coverage of the requested test lists
+### Latest-screenshot feature (requested test list)
+
+All rows are **JVM tests against fakes and synthetic screens**; none ran on a phone or against real WhatsApp / a real MediaStore.
+
+| Requested case | Test(s) | Result |
+|---|---|---|
+| Multiple conversations, all three behaviors | `LatestWorkflowTest.everyChatOpen_*`, `oncePerChat_multipleConversationsAndReopening`, `newScreenshotOnly_sameImageNotSentTwice_newImageIs` | pass (JVM) |
+| Reopening the same conversation | same tests (leave to chat list, reopen) + `oncePerChat_statusSurvivesRestartOfAutomation` | pass (JVM) |
+| A newly created screenshot | `newScreenshotOnly_screenshotTakenWhileChatIsOpenTriggersHandoff`, `..._sameImageNotSentTwice_newImageIs`; ordering by capture date in `ScreenshotSelectionTest` | pass (JVM); the real ContentObserver is untested |
+| No screenshots available | `noScreenshotsAvailable` (no retry loop), `emptyFolder` | pass (JVM) |
+| Deleted or inaccessible latest image | `deletedLatestFallsBackToOlderAndFlagsIt`, `deletedOrInaccessibleLatest_olderOneIsNotSentAutomatically`, `corruptLatestIsSkipped`, `everythingUnreadable` | pass (JVM) |
+| Identical image files | `identicalFilesShareOneIdentity_...`, `newScreenshotOnly_identicalImageFileIsNotResent` | pass (JVM) |
+| Missing permissions | `missingPermissions` (none / partial / SecurityException), `permissionStates` | pass (JVM); the Android permission dialogs are untested |
+| Conversation changing before sending | `conversationChangesBeforeSending_nothingIsShared`, `conversationChangedBetweenSelectionAndHandoff_manualConfirmation`, `whatsAppNotInFrontAtHandoff_isManual` | pass (JVM) |
+| WhatsApp interface changes | `whatsAppInterfaceChanged_screenNotRecognised_noAutomaticHandoff`, `fullAutoSend_recipientMismatchStopsBeforeSend`, unverified-recipient/ambiguous cases in `ShareFlowTest` | pass (JVM) with synthetic changes only; **real WhatsApp UI changes are untested** |
+| Automation being stopped | `stopCancelsPendingLookup_andLaterEvents`, `emergencyStop_haltsFlowImmediately_noFurtherClicks`, `pausedAndUnlicensed` | pass (JVM) |
+| Fully automatic send safety | `fullAutoSend_*`, `fullAutoSendIsOffUnlessOptedIn_...`, `fullAutoSendNeedsReliableIdentity_...`, `clickSendNeverEmittedFromAnyOtherPath`, `PolicyTest.sendButtonIsOnlyTouchedViaTheOptInShareFlow` | pass (JVM) |
+
+A defect found by these tests during development: a 3-second capture cooldown caused a second chat opened soon after the first to be skipped silently; it no longer applies to latest-screenshot mode.
+
+### Coverage of the requested test lists (original)
 
 Legend: **JVM-sim** = exercised by a JVM test against fakes/synthetic data; **Device** = needs a phone, not done.
 
@@ -88,8 +112,8 @@ WhatsApp (Part 12) - all against **synthetic snapshots**, never real WhatsApp
 
 ## B. Compile check
 
-`scripts/compile-check-platform.sh` compiles every non-Compose Kotlin file under `app/src/main/java` against `android.jar` (API 34)
-with stubs for `R`, `BuildConfig` and `androidx.core.content.FileProvider`. Result: success, 94 classes, no errors.
+Since the first report the GitHub Actions build (`.github/workflows/build-apk.yml`) has compiled the whole app including the Compose UI, and ran the Gradle unit tests on the first revision of this repository; see the workflow runs for the status of later revisions. `scripts/compile-check-platform.sh` compiles every non-Compose Kotlin file under `app/src/main/java` against `android.jar` (API 34)
+with stubs for `R`, `BuildConfig` and `androidx.core.content.FileProvider`. Result: success, 150 classes, no errors.
 
 ## C. Not run (be explicit)
 

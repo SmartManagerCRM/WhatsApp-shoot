@@ -8,7 +8,7 @@ import org.junit.rules.TemporaryFolder
 
 class ControllerTest {
     @get:Rule val tmp = TemporaryFolder()
-    private fun rig(s: AutomationSettings = AutomationSettings(mode = CaptureMode.AUTOMATIC), licensed: Boolean = true) = Rig(tmp.newFolder(), s, licensed)
+    private fun rig(s: AutomationSettings = AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.AUTOMATIC), licensed: Boolean = true) = Rig(tmp.newFolder(), s, licensed)
 
     // ---------------- WhatsApp detection scenarios ----------------
 
@@ -119,24 +119,24 @@ class ControllerTest {
     // ---------------- trigger modes & lifecycle ----------------
 
     @Test fun delayedMode_usesConfiguredDelay() {
-        val r = rig(AutomationSettings(mode = CaptureMode.DELAYED, delayMs = 5_000)); r.controller.start()
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.DELAYED, delayMs = 5_000)); r.controller.start()
         r.controller.onScreen(conversation()); r.scheduler.advance(4_999); assertEquals(0, r.engine.calls)
         r.scheduler.advance(2); assertEquals(1, r.engine.calls)
     }
 
     @Test fun delayIsClamped() {
-        assertEquals(500, AutomationSettings(mode = CaptureMode.DELAYED, delayMs = 0).effectiveDelayMs)
-        assertEquals(30_000, AutomationSettings(mode = CaptureMode.DELAYED, delayMs = 10_000_000).effectiveDelayMs)
+        assertEquals(500, AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.DELAYED, delayMs = 0).effectiveDelayMs)
+        assertEquals(30_000, AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.DELAYED, delayMs = 10_000_000).effectiveDelayMs)
     }
 
     @Test fun manualMode_neverCapturesAutomatically_butUserCan() {
-        val r = rig(AutomationSettings(mode = CaptureMode.MANUAL)); r.controller.start()
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.MANUAL)); r.controller.start()
         r.controller.onScreen(conversation()); r.scheduler.advance(60_000); assertEquals(0, r.engine.calls)
         assertTrue(r.controller.captureNow()); assertEquals(SCREENSHOT_READY, r.state)
     }
 
     @Test fun automaticCaptureDisabledSwitch() {
-        val r = rig(AutomationSettings(mode = CaptureMode.AUTOMATIC, automaticCaptureEnabled = false)); r.controller.start()
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.AUTOMATIC, automaticCaptureEnabled = false)); r.controller.start()
         r.controller.onScreen(conversation()); r.scheduler.advance(60_000); assertEquals(0, r.engine.calls)
     }
 
@@ -210,7 +210,7 @@ class ControllerTest {
     }
 
     @Test fun permissionRevokedLater_surfacesAsPermissionRequiredAgain() {
-        val r = rig(AutomationSettings(mode = CaptureMode.MANUAL)); r.controller.start()
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.MANUAL)); r.controller.start()
         assertTrue(r.controller.captureNow()); r.controller.dismiss()
         r.clock.advance(5_000)
         r.engine.next = { CaptureResult.PermissionRequired }
@@ -242,19 +242,19 @@ class ControllerTest {
     }
 
     @Test fun deliberateRecaptureReplacesPreviousScreenshotFile() {
-        val r = rig(AutomationSettings(mode = CaptureMode.MANUAL)); r.controller.start()
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.MANUAL)); r.controller.start()
         r.controller.captureNow(); r.clock.advance(2_000); r.controller.captureNow()
         assertEquals(1, r.shots()); assertEquals(2, r.engine.calls)
     }
 
     @Test fun deleteScreenshot() {
-        val r = rig(AutomationSettings(mode = CaptureMode.MANUAL)); r.controller.start(); r.controller.captureNow()
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.MANUAL)); r.controller.start(); r.controller.captureNow()
         r.controller.deleteScreenshot()
         assertEquals(0, r.shots()); assertNull(r.controller.view.screenshot); assertEquals(WAITING_FOR_WHATSAPP, r.state)
     }
 
     @Test fun dismissKeepsFileWhenConfigured() {
-        val r = rig(AutomationSettings(mode = CaptureMode.MANUAL, deleteWhenWorkflowEnds = false)); r.controller.start(); r.controller.captureNow()
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.MANUAL, deleteWhenWorkflowEnds = false)); r.controller.start(); r.controller.captureNow()
         r.controller.dismiss(); assertEquals(1, r.shots())
     }
 
@@ -320,7 +320,7 @@ class ControllerTest {
     }
 
     @Test fun directSelect_onlyWhenEnabled_andVerified_andReportsOutcome() {
-        val r = rig(AutomationSettings(mode = CaptureMode.AUTOMATIC, directSelectExperimental = true)); captured(r)
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.AUTOMATIC, directSelectExperimental = true)); captured(r)
         r.observer.screen = ScreenClassification(ScreenKind.CONVERSATION, headerText = "Alice")
         r.launcher.result = LaunchResult.Launched(directSelectPending = true)
         r.controller.requestAttach()
@@ -331,13 +331,13 @@ class ControllerTest {
 
     @Test fun directSelectAmbiguousOrTimeout_fallsBackToManual() {
         for (outcome in listOf(DirectSelectOutcome.AMBIGUOUS, DirectSelectOutcome.NOT_FOUND)) {
-            val r = rig(AutomationSettings(mode = CaptureMode.AUTOMATIC, directSelectExperimental = true)); captured(r)
+            val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.AUTOMATIC, directSelectExperimental = true)); captured(r)
             r.observer.screen = ScreenClassification(ScreenKind.CONVERSATION, headerText = "Alice")
             r.launcher.result = LaunchResult.Launched(true); r.controller.requestAttach()
             r.controller.onDirectSelectionResult(outcome)
             assertEquals(MANUAL_ACTION_REQUIRED, r.state)
         }
-        val r = rig(AutomationSettings(mode = CaptureMode.AUTOMATIC, directSelectExperimental = true)); captured(r)
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.AUTOMATIC, directSelectExperimental = true)); captured(r)
         r.observer.screen = ScreenClassification(ScreenKind.CONVERSATION, headerText = "Alice")
         r.launcher.result = LaunchResult.Launched(true); r.controller.requestAttach()
         r.scheduler.advance(AutomationController.DIRECT_SELECT_TIMEOUT_MS + 1)
@@ -345,7 +345,7 @@ class ControllerTest {
     }
 
     @Test fun directSelectNeverUsedForUnverifiedDestination() {
-        val r = rig(AutomationSettings(mode = CaptureMode.AUTOMATIC, directSelectExperimental = true)); captured(r)
+        val r = rig(AutomationSettings(imageSource = ImageSource.CAPTURE_NEW, mode = CaptureMode.AUTOMATIC, directSelectExperimental = true)); captured(r)
         r.observer.screen = null
         r.controller.requestAttach(); r.controller.confirmAndShareManually()
         assertEquals(false, r.launcher.lastDirect)

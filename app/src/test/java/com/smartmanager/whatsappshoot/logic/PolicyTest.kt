@@ -19,9 +19,13 @@ class PolicyTest {
     }
 
     @Test fun noBroadStorageOrOverlayOrContactPermissions() {
-        for (p in listOf("READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE", "MANAGE_EXTERNAL_STORAGE", "SYSTEM_ALERT_WINDOW", "READ_CONTACTS", "READ_SMS", "RECORD_AUDIO", "CAMERA", "READ_MEDIA")) {
+        for (p in listOf("WRITE_EXTERNAL_STORAGE", "MANAGE_EXTERNAL_STORAGE", "SYSTEM_ALERT_WINDOW", "READ_CONTACTS", "READ_SMS", "RECORD_AUDIO", "CAMERA", "READ_MEDIA_VIDEO", "READ_MEDIA_AUDIO", "ACCESS_MEDIA_LOCATION")) {
             assertFalse("$p must not be requested", manifest.contains(p))
         }
+        // Reading existing screenshots needs image read access only; legacy permission is capped to the Android versions that need it.
+        val perms = Regex("<uses-permission[^>]*>").findAll(manifest).map { it.value }.toList()
+        assertTrue(perms.any { it.contains("READ_MEDIA_IMAGES") })
+        assertTrue(perms.any { it.contains("READ_EXTERNAL_STORAGE") && it.contains("maxSdkVersion=\"32\"") })
     }
 
     @Test fun backupsDisabledSoActivationAndScreenshotsNeverLeaveTheDevice() {
@@ -55,11 +59,16 @@ class PolicyTest {
         for (f in appSources) assertFalse("${f.name} logs", Regex("\\bLog\\.[a-z]\\(|println\\(|Timber").containsMatchIn(f.readText()))
     }
 
-    @Test fun appNeverClicksSend() {
-        // The accessibility layer must contain no reference to WhatsApp's send button.
+    @Test fun sendButtonIsOnlyTouchedViaTheOptInShareFlow() {
+        // Only the service's ClickSend branch may use sendButtonIds, and the action only exists in ShareFlowEngine after a recipient match.
+        val users = appSources.filter { it.readText().contains("sendButtonIds") }.map { it.name }.toSet()
+        assertEquals(setOf("ScreenModel.kt", "WhatsAppAccessibilityService.kt"), users)
         val svc = File(root, "app/src/main/java/com/smartmanager/whatsappshoot/platform/WhatsAppAccessibilityService.kt").readText()
-        assertFalse(svc.contains("\"send\"", ignoreCase = true))
-        assertFalse(WhatsAppProfile().let { p -> (p.shareRowTitleIds + p.inputFieldIds).any { it.equals("send", true) } })
+        assertTrue(svc.contains("is ShareAction.ClickSend"))
+        assertFalse("the send button must not be a keyword in the input/header sets", WhatsAppProfile().let { p -> (p.shareRowTitleIds + p.inputFieldIds + p.conversationHeaderIds).any { it.equals("send", true) } })
+        // Fully automatic sending is off by default.
+        assertFalse(AutomationSettings().fullyAutomaticSend)
+        assertFalse(AutomationSettings().directSelectExperimental)
     }
 
     @Test fun noPrivateKeyMaterialCommittedAnywhere() {

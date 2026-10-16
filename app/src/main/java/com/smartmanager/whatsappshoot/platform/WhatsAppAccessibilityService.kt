@@ -8,13 +8,14 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.smartmanager.whatsappshoot.logic.AutomationSettings
 import com.smartmanager.whatsappshoot.logic.CaptureResult
-import com.smartmanager.whatsappshoot.logic.ConversationIdentity
-import com.smartmanager.whatsappshoot.logic.DirectSelectOutcome
 import com.smartmanager.whatsappshoot.logic.FailureReason
-import com.smartmanager.whatsappshoot.logic.IdentityHasher
 import com.smartmanager.whatsappshoot.logic.ScreenClassification
+import com.smartmanager.whatsappshoot.logic.ScreenKind
 import com.smartmanager.whatsappshoot.logic.ScreenSnapshot
-import com.smartmanager.whatsappshoot.logic.ShareTargetSelector
+import com.smartmanager.whatsappshoot.logic.ShareAction
+import com.smartmanager.whatsappshoot.logic.ShareOutcome
+import com.smartmanager.whatsappshoot.logic.ShareScreenView
+import com.smartmanager.whatsappshoot.logic.ShareStage
 import java.util.concurrent.Executors
 
 /**
@@ -34,16 +35,13 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     private var lastPackage: String? = null
     private var lastWindowClass: String? = null
     private lateinit var overlay: FloatingControl
-    private var pendingDirect: PendingDirect? = null
-
-    private class PendingDirect(val expected: ConversationIdentity?, val hasher: IdentityHasher, val startedAt: Long)
 
     private val evaluate = Runnable { evaluateNow() }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        overlay = FloatingControl(this) { graph.controller.captureNow() }
+        overlay = FloatingControl(this, onTap = { graph.controller.captureNow() }, onStop = { graph.controller.stop() })
         graph.onServiceConnected(this)
     }
 
@@ -73,34 +71,55 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         }
         graph.controller.onScreen(snapshot)
         updateOverlay(snapshot)
-        pendingDirect?.let {
-            // A stale request must never act on a share list the user opened later by hand.
-            if (System.currentTimeMillis() - it.startedAt > DIRECT_SELECT_TTL_MS) pendingDirect = null else tryDirectSelect(it, pkg)
-        }
+        if (pkg in profile.packages) driveShareFlow(pkg)
     }
 
-    private fun buildSnapshot(root: AccessibilityNodeInfo?, expectedPkg: String): ScreenSnapshot {
-        if (root == null || root.packageName?.toString() != expectedPkg) return ScreenSnapshot(expectedPkg, windowClassName = lastWindowClass)
-        val ids = HashSet<String>()
-        var header: String? = null
-        val headerIds = profile.conversationHeaderIds
+    /** Everything read from one pass over WhatsApp's accessibility tree: ids and a few specific labels only. */
+    private class Scan(
+        val ids: HashSet<String> = HashSet(),
+        var header: String? = null,
+        val rowTitles: ArrayList<String?> = ArrayList(),
+        val rowNodes: ArrayList<AccessibilityNodeInfo> = ArrayList(),
+        var recipient: String? = null,
+        var sendNode: AccessibilityNodeInfo? = null,
+        var outgoing: Int = 0,
+    )
+
+    private fun scan(root: AccessibilityNodeInfo): Scan {
+        val r = Scan()
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(root)
         var visited = 0
         while (queue.isNotEmpty() && visited < MAX_NODES) {
             val n = queue.removeFirst()
             visited++
-            val full = n.viewIdResourceName
-            if (full != null) {
-                val short = full.substringAfter(":id/", full)
-                ids += short
-                if (header == null && short in headerIds) header = n.text?.toString()
+            val short = n.viewIdResourceName?.substringAfter(":id/")
+            var keep = n === root
+            if (short != null) {
+                r.ids += short
+                if (r.header == null && short in profile.conversationHeaderIds) r.header = n.text?.toString()
+                if (short in profile.shareRowTitleIds) { r.rowTitles += n.text?.toString(); r.rowNodes += n; keep = true }
+                if (r.recipient == null && short in profile.sharePreviewRecipientIds) r.recipient = n.text?.toString()
+                if (r.sendNode == null && short in profile.sendButtonIds && n.isEnabled) { r.sendNode = n; keep = true }
+                if (short in profile.outgoingMediaIds) r.outgoing++
             }
             for (i in 0 until n.childCount) n.getChild(i)?.let(queue::add)
-            if (n !== root) recycleCompat(n)
+            if (!keep) recycleCompat(n)
         }
         queue.forEach(::recycleCompat)
-        return ScreenSnapshot(expectedPkg, ids, header, lastWindowClass)
+        return r
+    }
+
+    private fun buildSnapshot(root: AccessibilityNodeInfo?, expectedPkg: String): ScreenSnapshot {
+        if (root == null || root.packageName?.toString() != expectedPkg) return ScreenSnapshot(expectedPkg, windowClassName = lastWindowClass)
+        val sc = scan(root)
+        releaseScan(sc, root)
+        return ScreenSnapshot(expectedPkg, sc.ids, sc.header, lastWindowClass, outgoingMediaCount = if (sc.outgoing > 0 || sc.header != null) sc.outgoing else null)
+    }
+
+    private fun releaseScan(sc: Scan, root: AccessibilityNodeInfo) {
+        sc.rowNodes.forEach { if (it !== root) recycleCompat(it) }
+        sc.sendNode?.let { if (it !== root) recycleCompat(it) }
     }
 
     @Suppress("DEPRECATION")
@@ -173,40 +192,40 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         overlay.setVisible(active && graph.settings.current.floatingControlEnabled && whatsappInFront)
     }
 
-    // ---- experimental: select the matching chat in WhatsApp's share list (never presses Send) ----
+    // ---- share flow (select chat / optional Send), driven by the tested ShareFlowEngine ----
 
-    fun cancelDirectSelect() {
-        pendingDirect = null
-    }
-
-    fun beginDirectSelect(expected: ConversationIdentity?, hasher: IdentityHasher) {
-        pendingDirect = PendingDirect(expected, hasher, System.currentTimeMillis())
-    }
-
-    private fun tryDirectSelect(p: PendingDirect, pkg: String) {
-        if (lastWindowClass == null || lastWindowClass !in profile.shareListClasses) return
+    private fun driveShareFlow(pkg: String) {
+        val c = graph.controller
+        if (!c.shareFlowActive) return
         val root = rootInActiveWindow ?: return
         if (root.packageName?.toString() != pkg) return
-        pendingDirect = null // exactly one attempt per share launch
-        val titles = ArrayList<String?>()
-        val nodes = ArrayList<AccessibilityNodeInfo>()
-        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
-        var visited = 0
-        while (queue.isNotEmpty() && visited < MAX_NODES) {
-            val n = queue.removeFirst(); visited++
-            val short = n.viewIdResourceName?.substringAfter(":id/")
-            if (short != null && short in profile.shareRowTitleIds) { titles += n.text?.toString(); nodes += n }
-            for (i in 0 until n.childCount) n.getChild(i)?.let(queue::add)
+        val sc = scan(root)
+        try {
+            val cls = lastWindowClass
+            val stage = when {
+                cls != null && cls in profile.shareListClasses -> ShareStage.SHARE_LIST
+                cls != null && cls in profile.sharePreviewClasses -> ShareStage.SHARE_PREVIEW
+                graph.classifier.classify(ScreenSnapshot(pkg, sc.ids, sc.header, cls)).kind == ScreenKind.CONVERSATION -> ShareStage.CONVERSATION
+                else -> ShareStage.OTHER
+            }
+            val view = ShareScreenView(
+                stage = stage, rowTitles = sc.rowTitles, previewRecipient = sc.recipient, sendButtonAvailable = sc.sendNode != null,
+                conversationHeader = sc.header, outgoingMediaCount = if (stage == ShareStage.CONVERSATION) sc.outgoing else null,
+            )
+            when (val a = c.shareStep(view)) {
+                is ShareAction.ClickRow -> {
+                    if (clickAncestor(sc.rowNodes.getOrNull(a.index))) c.shareClickPerformed() else c.onShareOutcome(ShareOutcome.ABORT_NOT_FOUND)
+                }
+                // The only place WhatsApp's Send button is ever tapped: opt-in setting, verified chat, recipient matched on WhatsApp's own screen.
+                is ShareAction.ClickSend -> if (!clickAncestor(sc.sendNode)) c.onShareOutcome(ShareOutcome.ABORT_SEND_UNAVAILABLE)
+                else -> Unit
+            }
+        } finally {
+            releaseScan(sc, root)
         }
-        val outcome = when (val c = ShareTargetSelector.choose(titles, p.expected, p.hasher)) {
-            is ShareTargetSelector.Choice.Single -> if (clickRow(nodes[c.index])) DirectSelectOutcome.SELECTED else DirectSelectOutcome.NOT_FOUND
-            ShareTargetSelector.Choice.Ambiguous -> DirectSelectOutcome.AMBIGUOUS
-            ShareTargetSelector.Choice.None -> DirectSelectOutcome.NOT_FOUND
-        }
-        graph.controller.onDirectSelectionResult(outcome)
     }
 
-    private fun clickRow(node: AccessibilityNodeInfo): Boolean {
+    private fun clickAncestor(node: AccessibilityNodeInfo?): Boolean {
         var n: AccessibilityNodeInfo? = node
         var depth = 0
         while (n != null && depth < 6) {
@@ -245,6 +264,5 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val EVENT_DEBOUNCE_MS = 200L
         private const val HIDE_OVERLAY_SETTLE_MS = 150L
         private const val MAX_NODES = 600
-        private const val DIRECT_SELECT_TTL_MS = 14_000L
     }
 }

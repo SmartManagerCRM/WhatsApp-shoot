@@ -1,15 +1,15 @@
 # Screenshot Assistant for WhatsApp
 
-Android app that, when a WhatsApp conversation is opened, captures the whole screen, shows it for review and prepares it as an image attachment
-through WhatsApp's own share screen. You choose the chat and press Send; the app never sends. One-time purchase, lifetime licence, fully offline:
+Android app that, when a WhatsApp conversation is opened, finds your **latest existing screenshot** (it takes no new screenshot by default) and prepares it as an image attachment
+through WhatsApp's own share screen. By default you choose the chat and press Send. An optional, off-by-default "fully automatic" mode can press Send itself after the chat and recipient are verified. (Taking a new screenshot instead is still available in Settings.) One-time purchase, lifetime licence, fully offline:
 no INTERNET permission, no backend, no accounts, no analytics.
 
 ## Honest project status
 
 | Part | State |
 |---|---|
-| Licensing core (signed licences, installation-bound activation) + owner CLI | Implemented; **39 JVM tests pass**; CLI exercised end to end |
-| Automation logic (state machine, classifier, destination checks, duplicate guard, storage, controller) | Implemented; **87 JVM tests pass** against fakes / synthetic screens |
+| Licensing core (signed licences, installation-bound activation) + owner CLI | Implemented; **39 JVM tests pass** (185 in total); CLI exercised end to end |
+| Automation logic (state machine, classifier, destination checks, duplicate guard, storage, controller) | Implemented; **146 JVM tests pass** against fakes / synthetic screens |
 | Android platform glue (accessibility service, capture engines, Keystore, notifications, share launcher) | Written; **compiles against Android 34 API**; never executed on Android |
 | Compose UI, manifest, resources, Gradle build | Written; **never compiled** (Google Maven unreachable where this was built) |
 | APKs | **None built** (debug or release) |

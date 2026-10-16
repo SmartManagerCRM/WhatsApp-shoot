@@ -6,6 +6,8 @@ import com.smartmanager.whatsappshoot.logic.AutomationSettings
 import com.smartmanager.whatsappshoot.logic.CaptureMethod
 import com.smartmanager.whatsappshoot.logic.CaptureMode
 import com.smartmanager.whatsappshoot.logic.ImageFormat
+import com.smartmanager.whatsappshoot.logic.ImageSource
+import com.smartmanager.whatsappshoot.logic.SendBehavior
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -30,6 +32,10 @@ class SettingsStore(context: Context) {
             .putLong("retention", next.retentionMs)
             .putBoolean("deleteOnEnd", next.deleteWhenWorkflowEnds)
             .putBoolean("directSelect", next.directSelectExperimental)
+            .putString("source", next.imageSource.name)
+            .putString("behavior", next.sendBehavior.name)
+            .putString("folders", next.screenshotFolders.joinToString("|"))
+            .putBoolean("fullAuto", next.fullyAutomaticSend)
             .apply()
         _flow.value = next
     }
@@ -47,6 +53,10 @@ class SettingsStore(context: Context) {
             retentionMs = prefs.getLong("retention", d.retentionMs),
             deleteWhenWorkflowEnds = prefs.getBoolean("deleteOnEnd", d.deleteWhenWorkflowEnds),
             directSelectExperimental = prefs.getBoolean("directSelect", d.directSelectExperimental),
+            imageSource = enumOf(prefs.getString("source", null), d.imageSource),
+            sendBehavior = enumOf(prefs.getString("behavior", null), d.sendBehavior),
+            screenshotFolders = prefs.getString("folders", null)?.split('|')?.filter { it.isNotBlank() }?.ifEmpty { null } ?: d.screenshotFolders,
+            fullyAutomaticSend = prefs.getBoolean("fullAuto", d.fullyAutomaticSend),
         )
     }
 

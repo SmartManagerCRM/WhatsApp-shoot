@@ -90,6 +90,20 @@ class Notifier(private val context: Context) {
 
     fun cancelPermissionNeeded() = nm.cancel(ID_PERMISSION)
 
+    /** Android did not let us open WhatsApp sharing from the background: one tap does it. */
+    fun showShareFallback(shareIntent: Intent) {
+        if (!canPost()) return
+        val pi = PendingIntent.getActivity(context, 5, Intent(shareIntent), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = builder(CH_ACTION)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle(context.getString(R.string.notif_share_title))
+            .setContentText(context.getString(R.string.notif_share_text))
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .build()
+        try { nm.notify(ID_SHARE, n) } catch (e: SecurityException) { }
+    }
+
     fun projectionNotification(): Notification = builder(CH_STATUS)
         .setSmallIcon(R.drawable.ic_stat)
         .setContentTitle(context.getString(R.string.app_name))
@@ -105,6 +119,7 @@ class Notifier(private val context: Context) {
         const val ID_READY = 2
         const val ID_PERMISSION = 3
         const val ID_PROJECTION = 4
+        const val ID_SHARE = 5
     }
 }
 
@@ -167,5 +182,25 @@ object StatusStrings {
         com.smartmanager.whatsappshoot.logic.StatusMessage.ATTACHMENT_FAILED -> R.string.status_attachment_failed
         com.smartmanager.whatsappshoot.logic.StatusMessage.WHATSAPP_NOT_INSTALLED -> R.string.status_whatsapp_not_installed
         com.smartmanager.whatsappshoot.logic.StatusMessage.LICENSE_REQUIRED -> R.string.status_license_required
+        com.smartmanager.whatsappshoot.logic.StatusMessage.LOOKING_FOR_SCREENSHOT -> R.string.status_looking
+        com.smartmanager.whatsappshoot.logic.StatusMessage.LATEST_READY -> R.string.status_latest_ready
+        com.smartmanager.whatsappshoot.logic.StatusMessage.NO_SCREENSHOT -> R.string.status_no_screenshot
+        com.smartmanager.whatsappshoot.logic.StatusMessage.MEDIA_PERMISSION_REQUIRED -> R.string.status_media_permission
+        com.smartmanager.whatsappshoot.logic.StatusMessage.MEDIA_PERMISSION_PARTIAL -> R.string.status_media_partial
+        com.smartmanager.whatsappshoot.logic.StatusMessage.SCREENSHOT_UNREADABLE -> R.string.status_unreadable
+        com.smartmanager.whatsappshoot.logic.StatusMessage.ALREADY_HANDLED_CHAT -> R.string.status_already_chat
+        com.smartmanager.whatsappshoot.logic.StatusMessage.SAME_IMAGE_HANDLED -> R.string.status_same_image
+        com.smartmanager.whatsappshoot.logic.StatusMessage.NOT_NEWER -> R.string.status_not_newer
+        com.smartmanager.whatsappshoot.logic.StatusMessage.IDENTITY_UNRELIABLE -> R.string.status_identity_unreliable
+        com.smartmanager.whatsappshoot.logic.StatusMessage.NEWER_SCREENSHOT_UNREADABLE -> R.string.status_newer_unreadable
+        com.smartmanager.whatsappshoot.logic.StatusMessage.SEND_CONFIRMED -> R.string.status_send_confirmed
+        com.smartmanager.whatsappshoot.logic.StatusMessage.SEND_UNCONFIRMED -> R.string.status_send_unconfirmed
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_AMBIGUOUS -> R.string.status_auto_ambiguous
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_NOT_FOUND -> R.string.status_auto_not_found
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_RECIPIENT_MISMATCH -> R.string.status_auto_mismatch
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_RECIPIENT_UNVERIFIED -> R.string.status_auto_unverified
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_UNAVAILABLE -> R.string.status_auto_unavailable
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_TIMEOUT -> R.string.status_auto_timeout
+        com.smartmanager.whatsappshoot.logic.StatusMessage.CHAT_STATUS_RESET -> R.string.status_chat_reset
     }
 }

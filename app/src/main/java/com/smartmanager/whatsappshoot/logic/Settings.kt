@@ -10,8 +10,23 @@ enum class CaptureMethod {
     MEDIA_PROJECTION,
 }
 
+/** Where the image comes from. */
+enum class ImageSource {
+    /** Default: the newest existing screenshot from the device's Screenshots folder; nothing new is captured. */
+    LATEST_SCREENSHOT,
+
+    /** Legacy: take a new screenshot of the screen. */
+    CAPTURE_NEW,
+}
+
 data class AutomationSettings(
-    val mode: CaptureMode = CaptureMode.MANUAL,
+    val imageSource: ImageSource = ImageSource.LATEST_SCREENSHOT,
+    val sendBehavior: SendBehavior = SendBehavior.ONCE_PER_CHAT,
+    /** Folder names (exact path segment, case-insensitive) that count as "the Screenshots folder". */
+    val screenshotFolders: List<String> = listOf("Screenshots"),
+    /** Explicit opt-in (set only after the user confirms a warning): the app may press WhatsApp's Send button itself. */
+    val fullyAutomaticSend: Boolean = false,
+    val mode: CaptureMode = CaptureMode.AUTOMATIC,
     /** Delay used by [CaptureMode.DELAYED]. */
     val delayMs: Long = DEFAULT_DELAY_MS,
     /** Master switch for any capture that is not an explicit user action. */

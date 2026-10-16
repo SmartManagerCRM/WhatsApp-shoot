@@ -84,3 +84,18 @@ Only `VERIFIED` may proceed automatically, and even then the user picks and conf
 ## Storage
 Screenshots: `<cache>/screenshots/wss_<uuid>.<ext>` (atomic `.part` -> final rename). `ScreenshotRepository` refuses to delete or commit anything outside that directory
 or without the `wss_` prefix. `FileProvider` exposes only that directory. Backups are disabled so neither screenshots nor activation data leave the device.
+
+## Latest-screenshot workflow (default image source)
+```
+conversation detected --(settle delay)--> startLatest -> ScreenshotSelector (MediaStore, Screenshots folder only, newest eligible, hash of bytes)
+   -> SendPolicy.decide(behavior A/B/C, chat identity, image key, SentLedger)
+        Skip      -> CAPTURE_SKIPPED (status message, no loop: one attempt per conversation visit)
+        NeedManual-> stage copy in private cache, SCREENSHOT_READY, user confirms
+        Proceed   -> stage copy -> requestAttach(): DestinationVerifier re-checks the open chat -> WhatsApp share screen
+                      -> (optional, opt-in) ShareFlowEngine: pick the single matching row -> verify the recipient WhatsApp shows -> Send -> evidence check
+```
+- **Image identity** = SHA-256 of the file bytes (identical copies count as the same image). **Chat identity** = keyed hash of the normalised title (per-install secret); titles under 2 characters or unreadable are "unreliable" and force manual confirmation in modes B and C.
+- **SentLedger** (`PersistentLedger`): chat key x image key x date x status (PREPARED / SENT_UNCONFIRMED / SENT_CONFIRMED), capped at 500, cleared by resets.
+- **Mode C** also listens for new images (`NewScreenshotWatcher`, MediaStore observer, 1.5 s debounce) while a chat is open.
+- **Send button**: reachable only through `ShareFlowEngine` -> `ClickSend`, which exists only when `fullyAutomaticSend` is on, the destination was verified, and the recipient on WhatsApp's own screen matched. Stop clears the engine at once.
+- The workflow ends automatically after a hand-off when the user leaves the chat (chat list, other chat, other app), which deletes the temporary copy and resets the state for the next chat.

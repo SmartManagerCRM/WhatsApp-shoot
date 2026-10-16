@@ -7,7 +7,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -15,6 +19,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -23,15 +30,66 @@ import com.smartmanager.whatsappshoot.logic.AutomationSettings
 import com.smartmanager.whatsappshoot.logic.CaptureMethod
 import com.smartmanager.whatsappshoot.logic.CaptureMode
 import com.smartmanager.whatsappshoot.logic.ImageFormat
+import com.smartmanager.whatsappshoot.logic.ImageSource
+import com.smartmanager.whatsappshoot.logic.SendBehavior
 import com.smartmanager.whatsappshoot.platform.AppGraph
 
 @Composable
 fun SettingsScreen(graph: AppGraph) {
     val s by graph.settings.flow.collectAsStateWithLifecycle()
     val upd = graph.settings::update
+    var confirmAuto by remember { mutableStateOf(false) }
+    var folders by remember(s.screenshotFolders) { mutableStateOf(s.screenshotFolders.joinToString(", ")) }
+
+    if (confirmAuto) {
+        AlertDialog(
+            onDismissRequest = { confirmAuto = false },
+            title = { Text("Let the app press Send?") },
+            text = {
+                Text(
+                    "With this on, the app will press WhatsApp's Send button itself, but only when the open chat was verified and WhatsApp's own screen shows the same recipient. " +
+                        "If anything does not match it stops and nothing is sent. A wrong guess could still send a screenshot to the wrong chat, because chat names are not unique " +
+                        "and WhatsApp screens can change. The result is reported as confirmed only when the chat shows a new outgoing image. You can stop at any time with the Stop button. " +
+                        "This has not been validated on every phone and WhatsApp version.",
+                )
+            },
+            confirmButton = { Button(onClick = { upd { it.copy(fullyAutomaticSend = true) }; confirmAuto = false }) { Text("I understand, turn on") } },
+            dismissButton = { TextButton(onClick = { confirmAuto = false }) { Text("Cancel") } },
+        )
+    }
 
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
+
+        Section("Image source")
+        ChipRow(
+            listOf("Latest screenshot (no new capture)" to ImageSource.LATEST_SCREENSHOT, "Take a new screenshot" to ImageSource.CAPTURE_NEW),
+            selected = s.imageSource,
+        ) { m -> upd { it.copy(imageSource = m) } }
+        if (s.imageSource == ImageSource.LATEST_SCREENSHOT) {
+            OutlinedTextField(
+                value = folders, onValueChange = { folders = it; upd { st -> st.copy(screenshotFolders = it.split(',').map { n -> n.trim() }.filter { n -> n.isNotEmpty() }.ifEmpty { listOf("Screenshots") }) } },
+                label = { Text("Screenshots folder name(s), comma separated") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+            )
+            Text("Only images directly inside a folder with one of these names are ever used.", style = MaterialTheme.typography.bodySmall)
+
+            Section("Automatic sending behavior")
+            ChipRow(
+                listOf("Every chat open" to SendBehavior.EVERY_CHAT_OPEN, "Once per chat" to SendBehavior.ONCE_PER_CHAT, "New screenshot only" to SendBehavior.NEW_SCREENSHOT_ONLY),
+                selected = s.sendBehavior,
+            ) { b -> upd { it.copy(sendBehavior = b) } }
+            Text(
+                when (s.sendBehavior) {
+                    SendBehavior.EVERY_CHAT_OPEN -> "Prepares the latest screenshot whenever you open a chat."
+                    SendBehavior.ONCE_PER_CHAT -> "Prepares it once per identifiable chat until you reset that chat's status."
+                    SendBehavior.NEW_SCREENSHOT_ONLY -> "Prepares it only when the latest screenshot has not been handled for this chat (also reacts to a screenshot taken while the chat is open)."
+                } + " If a chat cannot be identified reliably, you are asked to confirm instead. Handled chats are remembered as one-way hashes on this phone, never as names.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Section("Fully automatic sending")
+            SwitchRow("Let the app press Send (off by default)", s.fullyAutomaticSend) { b -> if (b) confirmAuto = true else upd { it.copy(fullyAutomaticSend = false) } }
+            Text("Off: the app opens WhatsApp's share screen with the image and you press Send.", style = MaterialTheme.typography.bodySmall)
+        }
 
         Section("Capture mode")
         ChipRow(

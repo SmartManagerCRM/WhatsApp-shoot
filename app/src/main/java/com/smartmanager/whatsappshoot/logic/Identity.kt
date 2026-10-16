@@ -16,12 +16,16 @@ import java.util.Locale
  */
 class ConversationIdentity internal constructor(private val fingerprint: String?) {
     val isKnown: Boolean get() = fingerprint != null
+
+    /** Opaque, keyed hash usable as a ledger key; null when the conversation could not be identified reliably. */
+    val key: String? get() = fingerprint
     fun matches(other: ConversationIdentity?): Boolean = fingerprint != null && other?.fingerprint == fingerprint
     override fun toString() = if (fingerprint == null) "ConversationIdentity(unknown)" else "ConversationIdentity(known)"
     override fun equals(other: Any?) = other is ConversationIdentity && other.fingerprint == fingerprint
     override fun hashCode() = fingerprint.hashCode()
 }
 
+/** The salt is secret key material for the keyed hash; a per-install salt makes ledger keys stable across restarts. */
 class IdentityHasher(private val salt: ByteArray = ByteArray(16).also { SecureRandom().nextBytes(it) }) {
     fun identityOf(headerText: String?): ConversationIdentity = ConversationIdentity(fingerprintOf(headerText))
 
@@ -36,7 +40,8 @@ class IdentityHasher(private val salt: ByteArray = ByteArray(16).also { SecureRa
         fun normalize(text: String?): String? {
             val t = text?.let { Normalizer.normalize(it, Normalizer.Form.NFKC) }
                 ?.replace(Regex("\\s+"), " ")?.trim()?.lowercase(Locale.ROOT)
-            return if (t.isNullOrEmpty()) null else t
+            // A title shorter than 2 characters is not a usable identity (placeholders, icons, partial renders).
+            return if (t == null || t.length < 2) null else t
         }
     }
 }

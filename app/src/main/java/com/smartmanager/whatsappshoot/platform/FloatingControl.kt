@@ -15,9 +15,9 @@ import com.smartmanager.whatsappshoot.R
  * permission: accessibility services may add TYPE_ACCESSIBILITY_OVERLAY windows. Only shown while
  * automation is running, so it doubles as a visible "automation is active" indicator.
  */
-class FloatingControl(private val service: AccessibilityService, private val onTap: () -> Unit) {
+class FloatingControl(private val service: AccessibilityService, private val onTap: () -> Unit, private val onStop: () -> Unit) {
     private val wm = service.getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager
-    private var view: TextView? = null
+    private var view: android.widget.LinearLayout? = null
     private var wantVisible = false
     private var hiddenForCapture = false
 
@@ -51,18 +51,22 @@ class FloatingControl(private val service: AccessibilityService, private val onT
 
     private fun create() {
         val d = service.resources.displayMetrics.density
-        val tv = TextView(service).apply {
-            text = service.getString(R.string.floating_label)
-            contentDescription = service.getString(R.string.floating_description)
+        fun pill(text: String, color: Long, desc: String, onClick: () -> Unit) = TextView(service).apply {
+            this.text = text
+            contentDescription = desc
             setTextColor(Color.WHITE)
             textSize = 12f
             gravity = Gravity.CENTER
             setPadding((12 * d).toInt(), (10 * d).toInt(), (12 * d).toInt(), (10 * d).toInt())
-            background = GradientDrawable().apply {
-                cornerRadius = 24 * d
-                setColor(0xE6075E54.toInt())
-            }
-            setOnClickListener { onTap() }
+            background = GradientDrawable().apply { cornerRadius = 24 * d; setColor(color.toInt()) }
+            setOnClickListener { onClick() }
+        }
+        val box = android.widget.LinearLayout(service).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            addView(pill(service.getString(R.string.floating_label), 0xE6075E54, service.getString(R.string.floating_description), onTap))
+            // Emergency stop: always reachable while automation is active.
+            addView(pill(service.getString(R.string.floating_stop), 0xE6B3261E, service.getString(R.string.floating_stop_description), onStop),
+                android.widget.LinearLayout.LayoutParams(-2, -2).apply { topMargin = (6 * d).toInt() })
         }
         val lp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -75,8 +79,8 @@ class FloatingControl(private val service: AccessibilityService, private val onT
             x = (8 * d).toInt()
         }
         try {
-            wm.addView(tv, lp)
-            view = tv
+            wm.addView(box, lp)
+            view = box
         } catch (e: Exception) {
             view = null
         }

@@ -43,6 +43,20 @@ projection token), plus one device with a custom skin (Samsung or Xiaomi).
 - [ ] WhatsApp Business routing; WhatsApp not installed message.
 - [ ] URI grant works on the tested WhatsApp versions (image visible in WhatsApp preview) and is revoked on cleanup.
 
+## 4b. Latest screenshot and automatic sending (all unchecked)
+- [ ] Photo permission: grant / deny / (Android 14+) "selected photos only" -> correct messages, no crash, no repeated prompting.
+- [ ] Screenshots folder detection on: Pixel (Pictures/Screenshots), Samsung (DCIM/Screenshots), Xiaomi, plus a phone with a custom folder name.
+- [ ] Newest screenshot chosen correctly after taking a new one, after deleting the newest, after a screenshot is still being written (pending), PNG/JPEG/WebP.
+- [ ] Nothing outside the Screenshots folder is ever used (put a newer camera photo in DCIM/Camera).
+- [ ] Behavior A/B/C with 3+ chats, reopening, reset status, restart of the app/phone (ledger persistence), identical copies of an image.
+- [ ] Mode C: take a screenshot while the chat is open -> hand-off after ~1.5 s only once.
+- [ ] Chat title unreadable / duplicate titles -> manual confirmation, nothing recorded.
+- [ ] Share-screen calibration: record window classes/ids of WhatsApp's recipient list, preview/send screen, recipient label, Send button, outgoing image bubble; update `WhatsAppProfile`.
+- [ ] Fully automatic send (opt-in dialog shown; default off): correct chat -> sent; confirm "Sent" appears only when a new outgoing image is visible; wrong/ambiguous recipient -> nothing sent.
+- [ ] Chat switched mid-flow -> nothing sent. Stop button (floating and notification) halts clicks immediately.
+- [ ] Background-activity-start: does Android allow the share screen to open from the service? If not, does the fallback notification work?
+- [ ] Record exact WhatsApp / Android versions for each pass in `docs/WHATSAPP_COMPATIBILITY.md`.
+
 ## 5. Licensing on real Keystore
 - [ ] Create request code, issue device-bound license with the tool, activate: Active.
 - [ ] Reboot, force-stop, update in place (`adb install -r` with same signing key): still Active.

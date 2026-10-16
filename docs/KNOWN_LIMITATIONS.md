@@ -8,6 +8,19 @@
    Until then, expect `UNKNOWN_WHATSAPP` screens (safe behaviour: no auto-capture, manual confirmation).
 3. **Tested WhatsApp versions: none. Tested Android versions: none.** The code targets Android 8.0+ (API 26+), tuned for 11+.
 
+## Latest-screenshot and automatic-send limitations
+- **Fully automatic sending is experimental and unverified on real devices.** WhatsApp has no API for it; it works by accessibility-clicking WhatsApp's own share screens
+  (chat list, recipient preview, Send). The view ids/classes for those screens (`WhatsAppProfile.share*`, `sendButtonIds`, `outgoingMediaIds`) are unverified guesses. Do not claim
+  automatic-send compatibility for any WhatsApp/Android version until `docs/DEVICE_TEST_PLAN.md` section 4b has been executed there.
+- "Sent" is reported only when the chat shows more outgoing images than before; otherwise the app says the send "could not be confirmed". It cannot see delivery/read status.
+- Chat identity is the visible chat title (hashed). Two chats with the same title cannot be told apart: the app then finds an ambiguous list row and stops, but "once per chat" would treat them as one chat.
+- The sent-status ledger persists keyed hashes (no names) on the phone so "once per chat" survives restarts; it is cleared by the reset buttons. It is not encrypted beyond Android's app sandbox and the per-install key.
+- "Handled" is recorded when the image is handed to WhatsApp (or sent), not when you actually press Send; if you cancel in WhatsApp, reset the chat status or use "Attach latest screenshot" (which ignores the repeat rules).
+- If the newest screenshot cannot be read, an older one may be found; the app then refuses to act automatically and asks you to check it.
+- Android 14+ "selected photos" access cannot reliably find the newest screenshot; the app asks for full photo access.
+- Starting WhatsApp's share screen from a background service can be blocked by Android; the app then posts a notification to continue with one tap (untested).
+- Screenshot folder detection relies on the folder name (default `Screenshots`); phones that store screenshots elsewhere need the name added in Settings.
+
 ## Platform and WhatsApp restrictions
 - WhatsApp has no supported API to insert a file into an already-open chat. The app opens WhatsApp's own share screen (documented `ACTION_SEND`).
   The user chooses the chat and presses Send. Direct row selection is experimental and off by default.

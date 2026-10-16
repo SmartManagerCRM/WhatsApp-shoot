@@ -40,6 +40,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.smartmanager.whatsappshoot.R
 import com.smartmanager.whatsappshoot.license.ActivationStatus
 import com.smartmanager.whatsappshoot.logic.AutomationState
+import com.smartmanager.whatsappshoot.logic.ImageSource
+import com.smartmanager.whatsappshoot.logic.MediaAccess
 import com.smartmanager.whatsappshoot.logic.StoredScreenshot
 import com.smartmanager.whatsappshoot.platform.AppGraph
 import com.smartmanager.whatsappshoot.platform.ProjectionPermissionActivity
@@ -63,14 +65,18 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
     var accessibilityOn by remember { mutableStateOf(graph.accessibilityEnabled) }
     var captureOn by remember { mutableStateOf(graph.captureReady()) }
     var notificationsOn by remember { mutableStateOf(notificationsAllowed(ctx)) }
+    var media by remember { mutableStateOf(graph.mediaAccess()) }
     LaunchedEffect(Unit) {
         while (true) {
             accessibilityOn = graph.accessibilityEnabled
             captureOn = graph.captureReady()
             notificationsOn = notificationsAllowed(ctx)
+            media = graph.mediaAccess()
             delay(1000)
         }
     }
+    val mediaLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { media = graph.mediaAccess() }
+    val latestMode = settings.imageSource == ImageSource.LATEST_SCREENSHOT
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notificationsOn = it }
 
     var countdown by remember { mutableIntStateOf(0) }
@@ -106,6 +112,20 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
                 "Turn on \"Screenshot Assistant\" under Accessibility > Installed apps. It lets the app notice when a WhatsApp conversation is open. It never reads message text.",
             ) { Button(onClick = { ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text("Open accessibility settings") } }
         }
+        if (latestMode && media != MediaAccess.FULL) {
+            InfoCard(
+                if (media == MediaAccess.PARTIAL) "Only some photos are shared" else "Photo access is needed",
+                "The app reads only the newest image in your Screenshots folder (nothing is uploaded). " +
+                    if (media == MediaAccess.PARTIAL) "Choose \"Allow all\" so the newest screenshot can be found reliably." else "Allow access to photos so it can find your latest screenshot.",
+            ) {
+                OutlinedButton(onClick = {
+                    mediaLauncher.launch(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+                        else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+                    )
+                }) { Text("Allow photo access") }
+            }
+        }
         if (!notificationsOn && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             InfoCard("Notifications are off", "Without notifications the app cannot show its \"automation active\" indicator or the Attach action.") {
                 OutlinedButton(onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("Allow notifications") }
@@ -121,13 +141,20 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
             if (v.paused) OutlinedButton(onClick = { c.resume() }) { Text("Resume") }
             else OutlinedButton(onClick = { c.pause() }, enabled = active) { Text("Pause") }
             Button(
-                onClick = { if (countdown > 0) countdown = 0 else countdown = COUNTDOWN_SECONDS },
+                onClick = { if (latestMode) c.captureNow() else if (countdown > 0) countdown = 0 else countdown = COUNTDOWN_SECONDS },
                 enabled = active && !v.paused,
-            ) { Text(if (countdown > 0) "Cancel ($countdown)" else "Capture Screenshot") }
+            ) { Text(if (latestMode) "Attach latest screenshot" else if (countdown > 0) "Cancel ($countdown)" else "Capture Screenshot") }
         }
-        if (countdown > 0) Text("Switch to the screen you want. Capturing in $countdown s.", style = MaterialTheme.typography.bodySmall)
+        if (active) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { c.resetCurrentChatStatus() }) { Text("Reset this chat's status") }
+                OutlinedButton(onClick = { c.resetAllChatStatus() }) { Text("Reset all chats") }
+            }
+        }
+        if (countdown > 0 && !latestMode) Text("Switch to the screen you want. Capturing in $countdown s.", style = MaterialTheme.typography.bodySmall)
 
         // --- Permission rows ---
+        StatusRow("Photo access", when (media) { MediaAccess.FULL -> "Granted"; MediaAccess.PARTIAL -> "Limited (selected photos)"; MediaAccess.NONE -> "Not granted" })
         StatusRow("Accessibility permission", if (accessibilityOn) "Granted" else "Not granted")
         StatusRow(
             "Screen capture",

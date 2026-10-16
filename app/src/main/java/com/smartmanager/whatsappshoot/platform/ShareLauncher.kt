@@ -45,14 +45,27 @@ class ShareLauncher(private val context: Context, private val graph: () -> AppGr
         // Temporary, read-only grant to exactly the WhatsApp package we address; revoked on cleanup.
         context.grantUriPermission(pkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         return try {
-            if (tryDirectSelect) WhatsAppAccessibilityService.instance?.beginDirectSelect(expected, hasher)
             context.startActivity(intent)
             LaunchResult.Launched(directSelectPending = tryDirectSelect && WhatsAppAccessibilityService.instance != null)
+                .also { scheduleBlockedLaunchFallback(intent, pkg) }
         } catch (e: ActivityNotFoundException) {
             LaunchResult.WhatsAppNotInstalled
         } catch (e: Exception) {
             LaunchResult.Failed(e.javaClass.simpleName)
         }
+    }
+
+    /**
+     * Android may silently refuse to start an activity from the background. If WhatsApp's share screen did not come up
+     * (we still see the same conversation), offer a notification whose tap opens it (a user gesture is always allowed).
+     */
+    private fun scheduleBlockedLaunchFallback(intent: Intent, pkg: String) {
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            val screen = WhatsAppAccessibilityService.instance?.currentWhatsAppScreen()
+            if (screen?.kind == com.smartmanager.whatsappshoot.logic.ScreenKind.CONVERSATION) {
+                graph().notifier.showShareFallback(intent)
+            }
+        }, 2_500L)
     }
 
     fun revoke(shot: StoredScreenshot) {

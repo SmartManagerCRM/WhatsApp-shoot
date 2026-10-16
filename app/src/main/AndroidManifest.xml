@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Deliberately NOT requested: INTERNET, READ/WRITE_EXTERNAL_STORAGE, SYSTEM_ALERT_WINDOW, contacts, SMS, etc.
+    <!-- Deliberately NOT requested: INTERNET, write/manage storage, video/audio media, SYSTEM_ALERT_WINDOW, contacts, SMS, etc.
          The app works fully offline and has no network access at all. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Read-only access to existing images, to find the newest screenshot. Android 13+: image access only (no video/audio).
+         Older versions need the legacy permission, capped to the versions that still use it. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
     <!-- Package visibility (Android 11+) for the explicitly configured WhatsApp variants. -->
     <queries>

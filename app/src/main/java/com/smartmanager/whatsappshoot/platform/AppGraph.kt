@@ -19,6 +19,8 @@ import com.smartmanager.whatsappshoot.logic.ScreenClassifier
 import com.smartmanager.whatsappshoot.logic.ScreenObserver
 import com.smartmanager.whatsappshoot.logic.ScreenshotRepository
 import com.smartmanager.whatsappshoot.logic.Scheduler
+import com.smartmanager.whatsappshoot.logic.MediaAccess
+import com.smartmanager.whatsappshoot.logic.PersistentLedger
 import com.smartmanager.whatsappshoot.logic.WhatsAppProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -69,10 +71,19 @@ class AppGraph private constructor(app: Application) {
         }
     }
 
+    private val latestProvider = MediaStoreLatestProvider(app, repository, clock)
+    val ledger = PersistentLedger(PrefsLedgerStorage(app))
+
     val controller = AutomationController(
         classifier, { settings.current }, engine, repository, observer, shareLauncher, scheduler, clock,
         isLicensed = { license.isActive() },
+        latest = latestProvider, ledger = ledger, identitySalt = IdentitySalt.get(app),
     )
+
+    /** Watches the media library only while a session is running (and only matters for "new screenshot only"). */
+    private val watcher = NewScreenshotWatcher(app) { controller.onNewScreenshotAvailable() }
+
+    fun mediaAccess(): MediaAccess = latestProvider.access
 
     private val _ui = MutableStateFlow(controller.view)
     val ui: StateFlow<ControllerState> = _ui
@@ -82,9 +93,9 @@ class AppGraph private constructor(app: Application) {
             val v = controller.view
             _ui.value = v
             notifier.update(v)
+            if (v.state == AutomationState.INACTIVE) watcher.stop() else watcher.start()
             WhatsAppAccessibilityService.instance?.refreshOverlay()
             if (v.state != AutomationState.CAPTURE_PERMISSION_REQUIRED) notifier.cancelPermissionNeeded()
-            if (v.state != AutomationState.PREPARING_ATTACHMENT) WhatsAppAccessibilityService.instance?.cancelDirectSelect()
         }
         refreshLicense()
         bg.execute { if (settings.current.autoCleanup) repository.cleanupOlderThan(settings.current.retentionMs) }

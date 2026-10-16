@@ -69,6 +69,10 @@ data class WhatsAppProfile(
     val pickerIds: Set<String> = setOf("pickfiletype_gallery_holder", "gallery_picker_root"),
     val groupMarkerIds: Set<String> = setOf("conversation_contact_status_group"),
     val individualMarkerIds: Set<String> = setOf("conversation_contact_status_individual"),
+    /** Title views of the rows in WhatsApp's share (contact picker) list; used only by experimental direct selection. */
+    val shareRowTitleIds: Set<String> = setOf("contactpicker_row_name"),
+    /** Window class of WhatsApp's share target list. */
+    val shareListClasses: Set<String> = setOf("com.whatsapp.ContactPicker"),
 )
 
 class ScreenClassifier(private val profile: WhatsAppProfile = WhatsAppProfile(), private val ownPackage: String = "") {

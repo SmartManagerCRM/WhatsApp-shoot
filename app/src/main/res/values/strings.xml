@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Screenshot Assistant</string>
+    <string name="accessibility_description">Detects when a WhatsApp conversation is open so Screenshot Assistant can capture the screen and prepare the image for sharing. It reads only screen element identifiers and the conversation title (to avoid sending to the wrong chat). It never reads message text, never sends anything, and works offline.</string>
+
+    <string name="channel_status">Automation status</string>
+    <string name="channel_action">Actions</string>
+    <string name="notif_ready_title">Screenshot ready</string>
+    <string name="notif_ready_text">Tap Attach to open WhatsApp sharing. You choose the chat and press Send.</string>
+    <string name="notif_permission_title">Screen capture permission needed</string>
+    <string name="notif_permission_text">Tap to allow Screenshot Assistant to capture the screen once.</string>
+    <string name="notif_projection_text">Screen capture permission is active</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_attach">Attach to WhatsApp</string>
+
+    <string name="floating_label">Capture</string>
+    <string name="floating_description">Capture the current screen with Screenshot Assistant</string>
+
+    <string name="status_stopped">Automation stopped</string>
+    <string name="status_paused">Automation paused</string>
+    <string name="status_waiting">Waiting for WhatsApp</string>
+    <string name="status_whatsapp_detected">WhatsApp detected</string>
+    <string name="status_conversation_detected">Conversation detected</string>
+    <string name="status_conversation_not_recognised">WhatsApp is open but the screen was not recognised. Use Capture and confirm the recipient manually.</string>
+    <string name="status_capture_permission_required">Capture permission required</string>
+    <string name="status_capture_permission_denied">Capture permission was declined. Automatic capture will not ask again; press Capture Screenshot to try again.</string>
+    <string name="status_preparing_screenshot">Preparing screenshot</string>
+    <string name="status_screenshot_captured">Screenshot captured</string>
+    <string name="status_checking_conversation">Checking current conversation</string>
+    <string name="status_preparing_attachment">Preparing attachment</string>
+    <string name="status_attachment_ready">Attachment ready for review. Choose the chat in WhatsApp and press Send yourself.</string>
+    <string name="status_manual_confirmation">Manual confirmation required. Open WhatsApp sharing and choose the intended chat.</string>
+    <string name="status_destination_changed">The open conversation changed since the screenshot was taken. Confirm the destination manually.</string>
+    <string name="status_protected_screen">This screen is protected by the app that shows it and cannot be captured.</string>
+    <string name="status_capture_failed">The screenshot could not be captured.</string>
+    <string name="status_storage_failed">The screenshot could not be saved. Check free storage space.</string>
+    <string name="status_attachment_failed">WhatsApp sharing could not be opened. The screenshot is kept; try again or share it manually.</string>
+    <string name="status_whatsapp_not_installed">WhatsApp is not installed.</string>
+    <string name="status_license_required">License required. Activate your license first.</string>
+
+    <string name="license_not_activated">Not activated</string>
+    <string name="license_active">Activated: lifetime license</string>
+    <string name="license_no_key">This build was not provisioned with a license key and cannot activate licenses.</string>
+    <string name="license_err_malformed">That does not look like a valid license. Check that you copied all of it.</string>
+    <string name="license_err_signature">The license signature is not valid. It was not issued for this app.</string>
+    <string name="license_err_product">This license is for a different product.</string>
+    <string name="license_err_installation">This license was issued for a different phone. Create a new activation request on this phone and send it to the seller.</string>
+    <string name="license_err_need_request">This license is tied to a specific phone. Create an activation request first and send it to the seller.</string>
+    <string name="license_err_unsupported">This license needs a newer version of the app.</string>
+    <string name="license_err_record">The stored activation is damaged. Re-import your license.</string>
+    <string name="license_err_key_missing">The activation on this phone is no longer valid (reinstalled app, cleared data or copied installation). See the recovery instructions.</string>
+    <string name="license_err_keystore">This phone could not create a secure key. Activation is not possible on this device.</string>
+    <string name="license_err_storage">Activation could not be saved. Check free storage space.</string>
+</resources>

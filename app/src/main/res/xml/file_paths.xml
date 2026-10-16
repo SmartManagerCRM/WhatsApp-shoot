@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the dedicated screenshot folder inside the app's private cache can ever be shared. -->
+<paths>
+    <cache-path name="screenshots" path="screenshots/" />
+</paths>

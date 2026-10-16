@@ -27,7 +27,7 @@ interface CaptureEngine {
     fun capture(settings: AutomationSettings, callback: (CaptureResult) -> Unit)
 }
 
-interface ScreenObserver {
+fun interface ScreenObserver {
     /** Classification of what WhatsApp shows right now, or null if nothing observable (WhatsApp not in front). */
     fun currentScreen(): ScreenClassification?
 }

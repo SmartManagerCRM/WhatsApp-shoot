@@ -44,6 +44,9 @@ class AppGraph private constructor(app: Application) {
 
     @Volatile var lastWhatsAppPackage: String? = null
 
+    /** Short, content-free description of the last WhatsApp screen seen (kind and window class), shown on the Home screen. */
+    val lastScreen = MutableStateFlow("")
+
     private val projectionEngine = ProjectionCaptureEngine(app, repository)
 
     private val engine = object : CaptureEngine {

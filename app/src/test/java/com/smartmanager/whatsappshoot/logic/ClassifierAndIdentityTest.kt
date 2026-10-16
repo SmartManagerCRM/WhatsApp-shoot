@@ -52,6 +52,33 @@ class ClassifierAndIdentityTest {
         assertEquals(ScreenKind.UNKNOWN_WHATSAPP, kind(wa("entry")))
     }
 
+    // ---- structural fallback (WhatsApp ids/classes not as configured) ----
+    private fun unknownIds(edit: Boolean, title: String?, cls: String? = "com.whatsapp.SomethingNew", ids: Set<String> = setOf("x1", "x2")) =
+        ScreenSnapshot("com.whatsapp", ids, null, cls, hasEditableInput = edit, topTitle = title)
+
+    @Test fun structuralFallback_recognisesAConversationFromItsStructure() {
+        val r = c.classify(unknownIds(edit = true, title = "Alice"))
+        assertEquals(ScreenKind.CONVERSATION, r.kind); assertEquals("Alice", r.headerText)
+    }
+
+    @Test fun structuralFallbackNeedsBothMessageBoxAndTitle() {
+        assertEquals(ScreenKind.UNKNOWN_WHATSAPP, c.classify(unknownIds(edit = true, title = null)).kind)
+        assertEquals(ScreenKind.UNKNOWN_WHATSAPP, c.classify(unknownIds(edit = false, title = "Alice")).kind)
+        assertEquals(ScreenKind.UNKNOWN_WHATSAPP, c.classify(unknownIds(edit = true, title = "  ")).kind)
+    }
+
+    @Test fun structuralFallbackNeverOverridesRecognisedScreens() {
+        assertEquals(ScreenKind.CHAT_LIST, c.classify(unknownIds(true, "Chats", cls = "com.whatsapp.HomeActivity")).kind)
+        assertEquals(ScreenKind.SETTINGS, c.classify(unknownIds(true, "Settings", cls = "com.whatsapp.settings.Settings")).kind)
+        assertEquals(ScreenKind.ATTACHMENT_PICKER, c.classify(unknownIds(true, "Share", cls = "com.whatsapp.ContactPicker")).kind)
+        assertEquals(ScreenKind.MEDIA_VIEWER, c.classify(unknownIds(true, "Photo", cls = "com.whatsapp.mediaview.MediaView")).kind)
+    }
+
+    @Test fun structuralFallbackCanBeSwitchedOff() {
+        val strict = ScreenClassifier(WhatsAppProfile(structuralFallback = false), "x")
+        assertEquals(ScreenKind.UNKNOWN_WHATSAPP, strict.classify(unknownIds(true, "Alice")).kind)
+    }
+
     @Test fun snapshotToStringDoesNotLeakHeader() {
         assertFalse(conversation("Secret Name").toString().contains("Secret"))
     }

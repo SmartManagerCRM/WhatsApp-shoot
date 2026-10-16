@@ -15,6 +15,10 @@ class ScreenSnapshot(
     val outgoingMediaCount: Int? = null,
     /** Share-flow details, only filled by the service while a share flow is running. */
     val share: ShareScreenView? = null,
+    /** True if an editable text field (the message box) is on screen. Used by the structural fallback. */
+    val hasEditableInput: Boolean = false,
+    /** Text of the top-most title-like view in the upper part of the screen (the conversation title), if any. */
+    val topTitle: String? = null,
 ) {
     // No toString() override that would print headerText.
     override fun toString(): String = "ScreenSnapshot(package=$packageName, window=$windowClassName, ids=${viewIds.size})"
@@ -84,6 +88,8 @@ data class WhatsAppProfile(
     val sharePreviewRecipientIds: Set<String> = setOf("recipients", "send_to_text"),
     /** WhatsApp's own send button; only ever tapped when fully automatic sending is enabled AND the recipient matched. */
     val sendButtonIds: Set<String> = setOf("send"),
+    /** Recognise a conversation by structure (message box + title) when the ids/classes above do not match. */
+    val structuralFallback: Boolean = true,
     /** Outgoing media message bubbles in a conversation. */
     val outgoingMediaIds: Set<String> = setOf("image_message_outgoing", "main_image_outgoing"),
 )
@@ -120,6 +126,11 @@ class ScreenClassifier(private val profile: WhatsAppProfile = WhatsAppProfile(),
         if (idHit(profile.callsIds)) return ScreenClassification(ScreenKind.CALLS)
         if (idHit(profile.statusIds)) return ScreenClassification(ScreenKind.STATUS)
         if (clsHit(profile.chatListClasses) || idHit(profile.chatListIds)) return ScreenClassification(ScreenKind.CHAT_LIST)
+        // Structural fallback for when WhatsApp's identifiers are not the expected ones: a screen with a message box and a title at the
+        // top is treated as a conversation. Deliberately last, so every recognised non-chat screen above wins.
+        if (profile.structuralFallback && s.hasEditableInput && !s.topTitle.isNullOrBlank()) {
+            return ScreenClassification(ScreenKind.CONVERSATION, ConversationType.UNKNOWN, s.topTitle, s.outgoingMediaCount)
+        }
         return ScreenClassification(ScreenKind.UNKNOWN_WHATSAPP)
     }
 }

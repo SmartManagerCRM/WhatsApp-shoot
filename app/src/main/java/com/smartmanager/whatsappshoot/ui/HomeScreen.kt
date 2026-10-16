@@ -33,7 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import com.smartmanager.whatsappshoot.platform.ScreenReports
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,6 +63,8 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
     val license by graph.license.status.collectAsStateWithLifecycle()
     val settings by graph.settings.flow.collectAsStateWithLifecycle()
     val c = graph.controller
+    val clipboard = LocalClipboardManager.current
+    val lastScreen by graph.lastScreen.collectAsStateWithLifecycle()
 
     // Permission state is polled while the screen is visible: users toggle these in system Settings.
     var accessibilityOn by remember { mutableStateOf(graph.accessibilityEnabled) }
@@ -166,6 +171,24 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
             OutlinedButton(onClick = { ctx.startActivity(Intent(ctx, ProjectionPermissionActivity::class.java)) }, enabled = !captureOn) { Text("Grant screen-capture permission") }
         }
         StatusRow("License", if (licensed) "Activated (lifetime)" else "Not activated")
+        if (lastScreen.isNotEmpty()) Text("Last WhatsApp screen seen: $lastScreen", style = MaterialTheme.typography.bodySmall)
+
+        // --- Diagnostics: helps fix WhatsApp screen recognition without a PC. Contains no message text. ---
+        Text("Diagnostics", style = MaterialTheme.typography.titleSmall)
+        Text(
+            "If WhatsApp is not recognised: with automation running, open a chat, the chat list and the share list in WhatsApp, come back here and copy the report. " +
+                "It lists technical screen identifiers only, never message text, names or numbers.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { clipboard.setText(AnnotatedString(ScreenReports.text(ctx))) }) { Text("Copy screen report") }
+            OutlinedButton(onClick = {
+                ctx.startActivity(
+                    Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, ScreenReports.text(ctx)), "Share report")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }) { Text("Share report") }
+        }
 
         // --- Manual confirmation ---
         if (v.state == AutomationState.MANUAL_ACTION_REQUIRED) {

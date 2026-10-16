@@ -170,6 +170,14 @@ class LatestWorkflowTest {
         assertEquals(MANUAL_ACTION_REQUIRED, r.state); assertEquals(0, r.launcher.calls)
     }
 
+    @Test fun interfaceChangedButStructureIsRecognisable_stillHandsOff() {
+        val r = rig(SendBehavior.EVERY_CHAT_OPEN); r.source.add(1)
+        val snap = ScreenSnapshot("com.whatsapp", setOf("totally_new_id"), null, "com.whatsapp.NewConversationActivity", hasEditableInput = true, topTitle = "Alice")
+        r.observer.screen = ScreenClassification(ScreenKind.CONVERSATION, headerText = "Alice")
+        r.controller.onScreen(snap); r.scheduler.advance(2_000)
+        assertEquals(1, r.launcher.calls); assertEquals(ATTACHMENT_READY, r.state)
+    }
+
     @Test fun whatsAppInterfaceChanged_screenNotRecognised_noAutomaticHandoff() {
         val r = rig(SendBehavior.EVERY_CHAT_OPEN); r.source.add(1)
         r.controller.onScreen(ScreenSnapshot("com.whatsapp", setOf("totally_new_id"), "Alice", "com.whatsapp.NewConversationActivity"))

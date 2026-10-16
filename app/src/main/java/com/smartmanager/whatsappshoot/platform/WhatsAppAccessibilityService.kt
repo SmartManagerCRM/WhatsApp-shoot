@@ -69,6 +69,11 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         } else {
             ScreenSnapshot(pkg) // other apps: package name only
         }
+        if (pkg in profile.packages) {
+            val kind = graph.classifier.classify(snapshot).kind.name
+            graph.lastScreen.value = "$kind (${lastWindowClass ?: "?"})"
+            ScreenReports.record(this, pkg, lastWindowClass, kind, snapshot.viewIds, lastNodes)
+        }
         graph.controller.onScreen(snapshot)
         updateOverlay(snapshot)
         if (pkg in profile.packages) driveShareFlow(pkg)
@@ -83,10 +88,15 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         var recipient: String? = null,
         var sendNode: AccessibilityNodeInfo? = null,
         var outgoing: Int = 0,
+        val nodes: ArrayList<String> = ArrayList(),
+        var editable: Boolean = false,
+        var title: String? = null,
+        var titleKey: Long = Long.MAX_VALUE,
     )
 
     private fun scan(root: AccessibilityNodeInfo): Scan {
         val r = Scan()
+        val screenH = resources.displayMetrics.heightPixels.coerceAtLeast(1)
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(root)
         var visited = 0
@@ -95,6 +105,17 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             visited++
             val short = n.viewIdResourceName?.substringAfter(":id/")
             var keep = n === root
+            val cls = n.className?.toString()
+            val hasText = !n.text.isNullOrEmpty()
+            val rect = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+            if (n.isEditable) r.editable = true
+            if (n !== root && cls != null && cls.endsWith("TextView") && hasText && rect.top >= 0 && rect.top < screenH * 0.2) {
+                val key = rect.top * 10_000L + rect.left
+                if (key < r.titleKey) { r.titleKey = key; r.title = n.text.toString() }
+            }
+            if (r.nodes.size < MAX_REPORT_NODES && (short != null || n.isEditable || (hasText && rect.top < screenH * 0.25))) {
+                r.nodes += "${short ?: "-"}|${cls?.substringAfterLast('.') ?: "?"}|text=${if (hasText) "Y" else "N"}|edit=${if (n.isEditable) "Y" else "N"}|click=${if (n.isClickable) "Y" else "N"}|top=${rect.top * 100 / screenH}%"
+            }
             if (short != null) {
                 r.ids += short
                 if (r.header == null && short in profile.conversationHeaderIds) r.header = n.text?.toString()
@@ -114,8 +135,15 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         if (root == null || root.packageName?.toString() != expectedPkg) return ScreenSnapshot(expectedPkg, windowClassName = lastWindowClass)
         val sc = scan(root)
         releaseScan(sc, root)
-        return ScreenSnapshot(expectedPkg, sc.ids, sc.header, lastWindowClass, outgoingMediaCount = if (sc.outgoing > 0 || sc.header != null) sc.outgoing else null)
+        lastNodes = sc.nodes
+        return ScreenSnapshot(
+            expectedPkg, sc.ids, sc.header, lastWindowClass,
+            outgoingMediaCount = if (sc.outgoing > 0 || sc.header != null || sc.editable) sc.outgoing else null,
+            hasEditableInput = sc.editable, topTitle = sc.title,
+        )
     }
+
+    @Volatile private var lastNodes: List<String> = emptyList()
 
     private fun releaseScan(sc: Scan, root: AccessibilityNodeInfo) {
         sc.rowNodes.forEach { if (it !== root) recycleCompat(it) }
@@ -205,12 +233,12 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             val stage = when {
                 cls != null && cls in profile.shareListClasses -> ShareStage.SHARE_LIST
                 cls != null && cls in profile.sharePreviewClasses -> ShareStage.SHARE_PREVIEW
-                graph.classifier.classify(ScreenSnapshot(pkg, sc.ids, sc.header, cls)).kind == ScreenKind.CONVERSATION -> ShareStage.CONVERSATION
+                graph.classifier.classify(ScreenSnapshot(pkg, sc.ids, sc.header, cls, hasEditableInput = sc.editable, topTitle = sc.title)).kind == ScreenKind.CONVERSATION -> ShareStage.CONVERSATION
                 else -> ShareStage.OTHER
             }
             val view = ShareScreenView(
                 stage = stage, rowTitles = sc.rowTitles, previewRecipient = sc.recipient, sendButtonAvailable = sc.sendNode != null,
-                conversationHeader = sc.header, outgoingMediaCount = if (stage == ShareStage.CONVERSATION) sc.outgoing else null,
+                conversationHeader = sc.header ?: sc.title, outgoingMediaCount = if (stage == ShareStage.CONVERSATION) sc.outgoing else null,
             )
             when (val a = c.shareStep(view)) {
                 is ShareAction.ClickRow -> {
@@ -264,5 +292,6 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val EVENT_DEBOUNCE_MS = 200L
         private const val HIDE_OVERLAY_SETTLE_MS = 150L
         private const val MAX_NODES = 600
+        private const val MAX_REPORT_NODES = 160
     }
 }

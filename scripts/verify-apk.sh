@@ -32,7 +32,7 @@ BADGE=$("$BT/aapt2" dump badging "$APK" 2>&1)
 echo "$BADGE" | grep -E "^package:|^sdkVersion|^minSdkVersion|^targetSdkVersion|^application-label:|^native-code|^launchable-activity" | sed 's/^/  /'
 echo "--- permissions"; echo "$BADGE" | grep -E "^uses-permission" | sed 's/^/  /'
 echo "$BADGE" | grep -q "name='com.smartmanager.whatsappshoot'" && ok "package name is com.smartmanager.whatsappshoot" || bad "unexpected package name"
-echo "$BADGE" | grep -q "^sdkVersion:'26'" && ok "minSdk 26" || bad "minSdk is not 26"
+echo "$BADGE" | grep -q "^minSdkVersion:'26'" && ok "minSdk 26" || bad "minSdk is not 26"
 echo "$BADGE" | grep -q "^targetSdkVersion:'35'" && ok "targetSdk 35" || bad "targetSdk is not 35"
 echo "$BADGE" | grep -q "android.permission.INTERNET" && bad "app requests INTERNET" || ok "no INTERNET permission"
 

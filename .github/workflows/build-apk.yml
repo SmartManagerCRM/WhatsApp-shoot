@@ -44,6 +44,18 @@ jobs:
           export WSS_STORE_FILE="$RUNNER_TEMP/release.p12"
           ./gradlew --no-daemon :app:assembleRelease
           rm -f "$RUNNER_TEMP/release.p12"
+      - name: Verify the APK files are genuine (fails the build otherwise)
+        env:
+          EXPECT_SIGNER: ${{ secrets.WSS_SIGNER_SHA256 }}
+        run: |
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          echo "Gradle output files:"; ls -l app/build/outputs/apk/debug/ app/build/outputs/apk/release/ 2>&1 || true
+          rc=0
+          bash scripts/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk "$BT" || rc=1
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            bash scripts/verify-apk.sh app/build/outputs/apk/release/app-release.apk "$BT" "$EXPECT_SIGNER" || rc=1
+          fi
+          exit $rc
       - name: Collect
         run: |
           mkdir -p out
@@ -51,7 +63,8 @@ jobs:
           cp app/build/outputs/apk/debug/*.apk "out/$N"
           ls app/build/outputs/apk/release/*.apk >/dev/null 2>&1 && cp app/build/outputs/apk/release/*.apk out/ScreenshotAssistant-release.apk || true
           cp dist/license-tool.jar out/ || true
-          ls -la out
+          (cd out && sha256sum *.apk *.jar > SHA256SUMS.txt)
+          ls -la out; cat out/SHA256SUMS.txt
       - name: Summary
         run: |
           {
@@ -63,3 +76,26 @@ jobs:
         with:
           name: ScreenshotAssistant-apk
           path: out/
+
+  emulator-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ScreenshotAssistant-apk
+          path: out
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Install + launch the APKs on an Android 14 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash scripts/emulator-smoke-all.sh

@@ -23,7 +23,7 @@ jobs:
       - name: Unit tests (licensing, tool, automation logic)
         run: ./gradlew --no-daemon :license-core:test :license-tool:test :app:testDebugUnitTest
       - name: Provide a throw-away licence key if none is configured (DEV BUILD ONLY)
-        if: ${{ env.WSS_LICENSE_PUBLIC_KEY == '' }}
+        if: ${{ env.WSS_LICENSE_PUBLIC_KEY == '' && hashFiles('license-public-key.txt') == '' }}
         run: |
           ./gradlew --no-daemon :license-tool:installDist
           WSS_KEY_PASSPHRASE=dev-only-throwaway-passphrase license-tool/build/install/license-tool/bin/license-tool keygen --out-dir "$RUNNER_TEMP/devkey"
@@ -47,10 +47,18 @@ jobs:
       - name: Collect
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/*.apk out/ScreenshotAssistant-debug$([ "$DEV_BUILD" = true ] && echo -DEV-KEY-NOT-FOR-CUSTOMERS).apk
+          if [ "$DEV_BUILD" = true ]; then N=ScreenshotAssistant-DEV-KEY-NOT-FOR-CUSTOMERS.apk; else N=ScreenshotAssistant-debug-signed.apk; fi
+          cp app/build/outputs/apk/debug/*.apk "out/$N"
           ls app/build/outputs/apk/release/*.apk >/dev/null 2>&1 && cp app/build/outputs/apk/release/*.apk out/ScreenshotAssistant-release.apk || true
           cp dist/license-tool.jar out/ || true
           ls -la out
+      - name: Summary
+        run: |
+          {
+            echo "### Build result"
+            if [ "$DEV_BUILD" = true ]; then echo "- DEV build: throw-away licence key. NOT for customers."; else echo "- Licence key: committed license-public-key.txt (or LICENSE_PUBLIC_KEY variable)."; fi
+            if ls out/ScreenshotAssistant-release.apk >/dev/null 2>&1; then echo "- **Signed release APK produced**: ScreenshotAssistant-release.apk"; else echo "- No release APK: add the WSS_* signing secrets (see docs/RELEASE.md) and re-run."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: ScreenshotAssistant-apk

@@ -1,0 +1,21 @@
+# Build outputs
+build/
+.gradle/
+*.apk
+*.aab
+out/
+.idea/
+*.iml
+local.properties
+.kotlin/
+
+# Secrets - NEVER commit
+*.jks
+*.keystore
+keystore.properties
+license-private*.enc
+license-private*.pem
+*.key
+signing/
+issued-licenses.csv
+secrets/

@@ -14,7 +14,8 @@ val keystoreProps = Properties().apply {
 fun signingValue(key: String, env: String): String? = keystoreProps.getProperty(key) ?: System.getenv(env)
 
 // --- License verification key (PUBLIC key only) written by `license-tool keygen`. ---
-val licensePublicKey: String = rootProject.file("license-public-key.txt").takeIf { it.exists() }?.readText()?.trim()
+val licensePublicKey: String = System.getenv("WSS_LICENSE_PUBLIC_KEY")?.trim()?.takeIf { it.isNotEmpty() }
+    ?: rootProject.file("license-public-key.txt").takeIf { it.exists() }?.readText()?.trim()
     ?: "UNCONFIGURED"
 val expectedSigner: String = (signingValue("signerSha256", "WSS_SIGNER_SHA256") ?: "").lowercase()
 

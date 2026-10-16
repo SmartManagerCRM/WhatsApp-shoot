@@ -25,10 +25,10 @@ Run with `scripts/run-jvm-tests.sh` (or `scripts/jvm-tests-quick.sh` in the auth
 | `ClassifierAndIdentityTest` | 14 | screen classification (synthetic snapshots), Business variant, destination verification, unambiguous share-row selection, hashed identity |
 | `RepositoryAndGuardTest` | 7 | atomic save, retention cleanup that never deletes foreign files, storage failure, duplicate-capture guard |
 | `ControllerTest` | 45 | full automation workflow with fakes (see matrices) |
-| `ScreenshotSelectionTest` | 11 | latest-screenshot selection: Screenshots-folder-only, formats, pending/trashed/empty, date fallbacks, deleted/unreadable latest, permission states, identical files |
+| `ScreenshotSelectionTest` | 13 | latest-screenshot selection: Screenshots-folder-only, formats, pending/trashed/empty, date fallbacks, deleted/unreadable latest, permission states, identical files |
 | `SendPolicyTest` | 7 | the three sending behaviors, per-chat independence, unreliable identity, persistent ledger |
 | `ShareFlowTest` | 7 | share-screen engine: one-row selection, recipient check before Send, confirmed vs unconfirmed, timeout, stop |
-| `LatestWorkflowTest` | 26 | end-to-end workflow with fakes (see matrix below) |
+| `LatestWorkflowTest` | 32 | end-to-end workflow with fakes (see matrix below) |
 | `PolicyTest` | 11 | static checks: no INTERNET permission, no network APIs, no backup, FileProvider scope, no logging, no `Send` automation, no private key committed, signing code absent from the app |
 
 Sensitivity check: deleting the signature check in `LicenseVerifier` makes 3 tests fail (performed once, by hand).

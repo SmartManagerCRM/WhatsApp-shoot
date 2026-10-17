@@ -38,11 +38,14 @@ import sys, re, xml.etree.ElementTree as ET
 t = sys.argv[1]
 try: r = ET.parse('/tmp/ui.xml').getroot()
 except Exception: sys.exit(1)
+# Several nodes can carry the same text (e.g. a checklist row and a bottom-navigation tab): take the lowest one on screen.
+best = None
 for n in r.iter('node'):
     if n.get('text') == t:
         m = list(map(int, re.findall(r'\d+', n.get('bounds'))))
-        print((m[0]+m[2])//2, (m[1]+m[3])//2); sys.exit(0)
-sys.exit(1)
+        if best is None or m[1] > best[1]: best = m
+if best is None: sys.exit(1)
+print((best[0]+best[2])//2, (best[1]+best[3])//2)
 PY
 }
 echo "--- Home screen"; ui_texts | tee /tmp/home.txt

@@ -21,6 +21,7 @@ Open the **Home** tab. The checklist shows what is still needed - tap the button
 - **Notifications** - tap *Allow* (shows the "automation is on" indicator).
 
 Then open **Settings**:
+- **Language:** choose English, العربية or Français (or keep the system language).
 - **What to send:** *Newest photo* (default).
 - **When to send:** *Once per chat* (sends once to each chat; use *Reset this chat* on Home to send again), or *Every chat open*.
 - **Fully automatic sending:** switch **Send automatically** ON and confirm. Without it, the app only prepares the picture and you press Send yourself.

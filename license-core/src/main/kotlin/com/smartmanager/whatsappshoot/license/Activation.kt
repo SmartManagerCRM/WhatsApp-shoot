@@ -96,6 +96,16 @@ class ActivationEngine(
         null
     }
 
+    /**
+     * First launch: creates this installation's key pair (Android Keystore) if it does not exist yet, so that a license entered later is bound
+     * without the customer ever creating or sending a request code. Safe to call on every start. Returns false if the Keystore is unusable.
+     */
+    fun prepareInstallation(): Boolean = try {
+        keys.ensureKey(); true
+    } catch (e: InstallKeyException) {
+        false
+    }
+
     fun activate(token: String): ActivationResult {
         val token1 = token.filter { !it.isWhitespace() }
         if (token1.startsWith(LicenseFormat.CONTROL_PREFIX + ".")) return applyControl(token1)
@@ -235,7 +245,10 @@ class ActivationEngine(
             return ActivationStatus.RecordCorrupt
         }
         // 3. This installation must own that key right now (detects data copied to another phone, reinstall).
-        val current = keys.publicKeyX509() ?: run { lastDetail = "installation key not found"; return ActivationStatus.InstallKeyMissing }
+        var current = keys.publicKeyX509()
+        var lookups = 0
+        while (current == null && lookups < SIGN_RETRIES) { pause(SIGN_RETRY_PAUSE_MS); current = keys.publicKeyX509(); lookups++ } // Keystore can be briefly unreadable
+        if (current == null) { lastDetail = "installation key not found"; return ActivationStatus.InstallKeyMissing }
         if (!current.contentEquals(recordPub)) { lastDetail = "installation key differs from the recorded one"; return ActivationStatus.InstallKeyMissing }
         val nonce = ByteArray(32).also { random.nextBytes(it) }
         val challenge = LicenseFormat.CHALLENGE_DOMAIN.toByteArray(Charsets.UTF_8) + nonce

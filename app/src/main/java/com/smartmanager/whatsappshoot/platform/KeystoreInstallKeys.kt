@@ -31,7 +31,13 @@ class KeystoreInstallKeys(private val alias: String = ALIAS) : InstallKeyProvide
     }
 
     override fun ensureKey(): ByteArray {
-        publicKeyX509()?.let { return it }
+        // Never generate over an existing entry: if the Keystore is briefly unreadable, replacing the key would destroy the activation.
+        val ks = try { keyStore() } catch (e: Exception) { throw InstallKeyException("Android Keystore unavailable", e) }
+        val exists = try { ks.containsAlias(alias) } catch (e: Exception) { throw InstallKeyException("Android Keystore unavailable", e) }
+        if (exists) {
+            return try { ks.getCertificate(alias)?.publicKey?.encoded } catch (e: Exception) { null }
+                ?: throw InstallKeyException("Installation key exists but could not be read")
+        }
         try {
             try {
                 generate(strongBox = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)

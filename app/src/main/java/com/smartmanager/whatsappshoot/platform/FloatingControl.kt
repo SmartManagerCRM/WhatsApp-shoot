@@ -20,6 +20,7 @@ class FloatingControl(private val service: AccessibilityService, private val onT
     private var view: android.widget.LinearLayout? = null
     private var wantVisible = false
     private var hiddenForCapture = false
+    private var builtLanguage = ""
 
     val isShowing: Boolean get() = view?.visibility == View.VISIBLE
 
@@ -45,11 +46,14 @@ class FloatingControl(private val service: AccessibilityService, private val onT
 
     private fun apply() {
         val show = wantVisible && !hiddenForCapture
+        if (view != null && builtLanguage != LocaleHelper.effective(service)) remove() // language changed in Settings: rebuild with the new texts
         if (show && view == null) create()
         view?.visibility = if (show) View.VISIBLE else View.GONE
     }
 
     private fun create() {
+        val labels = LocaleHelper.wrap(service)
+        builtLanguage = LocaleHelper.effective(service)
         val d = service.resources.displayMetrics.density
         fun pill(text: String, color: Long, desc: String, onClick: () -> Unit) = TextView(service).apply {
             this.text = text
@@ -63,9 +67,9 @@ class FloatingControl(private val service: AccessibilityService, private val onT
         }
         val box = android.widget.LinearLayout(service).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            addView(pill(service.getString(R.string.floating_label), 0xE6075E54, service.getString(R.string.floating_description), onTap))
+            addView(pill(labels.getString(R.string.floating_label), 0xE6075E54, labels.getString(R.string.floating_description), onTap))
             // Emergency stop: always reachable while automation is active.
-            addView(pill(service.getString(R.string.floating_stop), 0xE6B3261E, service.getString(R.string.floating_stop_description), onStop),
+            addView(pill(labels.getString(R.string.floating_stop), 0xE6B3261E, labels.getString(R.string.floating_stop_description), onStop),
                 android.widget.LinearLayout.LayoutParams(-2, -2).apply { topMargin = (6 * d).toInt() })
         }
         val lp = WindowManager.LayoutParams(

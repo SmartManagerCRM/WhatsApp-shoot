@@ -21,6 +21,7 @@
 - **Notifications (الإشعارات)** - اضغط *Allow* (لإظهار مؤشر "الأتمتة تعمل").
 
 ثم افتح **Settings**:
+- **Language (اللغة):** اختر English أو العربية أو Français (أو اترك لغة النظام).
 - **What to send:** *Newest photo* (الافتراضي).
 - **When to send:** *Once per chat* (مرة لكل محادثة؛ استخدم *Reset this chat* في Home للإرسال مجدداً) أو *Every chat open* (عند كل فتح).
 - **Fully automatic sending:** فعّل **Send automatically** ووافق على التنبيه. بدونه يجهّز التطبيق الصورة فقط وتضغط أنت زر الإرسال.

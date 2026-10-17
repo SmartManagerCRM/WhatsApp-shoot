@@ -40,8 +40,11 @@ ready. **You** pick the chat and press Send. The app never sends anything.
 Everything stays on the phone; no internet permission. See the **Privacy** tab and `docs/PERMISSIONS_AND_PRIVACY.md`.
 
 ## Licence and recovery
-See the **License** tab. New phone, reinstall or cleared data => create a new activation request and contact the seller with your order number.
+See the **License** tab. Paste the license code you received (or import the file) and tap Activate - no request code is needed. New phone, reinstall or cleared data => enter the license code again.
 Keep your licence file and order number. Updating the app by installing over it keeps your licence.
+
+## Language
+Settings > Language: System default, English, العربية (Arabic, right-to-left) or Français. The whole app, its notifications and the floating button switch immediately.
 
 ## Troubleshooting
 - *WhatsApp is open but "not recognised"*: WhatsApp changed its screens; use Capture and confirm the chat manually; report your WhatsApp version.

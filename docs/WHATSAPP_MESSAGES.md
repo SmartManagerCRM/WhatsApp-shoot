@@ -56,3 +56,30 @@ Hi [NAME], your Screenshot Assistant subscription ends on [DATE]. To keep it run
 
 ## 5. After you stop a customer (English)
 Hi [NAME], your Screenshot Assistant license ended on [DATE] because the renewal was not received. Send [PRICE] and I'll send a renewal code the same day.
+
+## 1c. Premier message (français)
+Bonjour [NOM] 👋
+Screenshot Assistant envoie votre *photo* la plus récente à toute conversation WhatsApp que vous ouvrez - automatiquement, sans aucun appui. Les vidéos et autres fichiers ne sont jamais envoyés, et tout reste sur votre téléphone (pas d'Internet, vos messages ne sont jamais lus).
+
+Comment ça marche :
+1️⃣ Je vous envoie le fichier de l'application (APK) et vous l'installez sur votre téléphone Android
+2️⃣ Je vous envoie votre code de licence, vous le collez dans *Licence* puis *Activer* et c'est actif
+
+Prix : [PRIX] ([à vie / par mois]). [Essai gratuit : 7 jours.]
+Fonctionne sur Android 8+ avec WhatsApp / WhatsApp Business. Une licence par client.
+Je vous envoie le fichier ?
+
+## 2c. Envoi de l'application (français)
+Voici le fichier de l'application 👇 (ScreenshotAssistant-release.apk)
+1. Ouvrez-le et touchez *Installer* (si Android le demande, autorisez « Installer des applications inconnues » ; si Play Protect avertit, touchez *Plus de détails > Installer quand même*).
+2. Ouvrez l'application et gardez-la prête - je vous envoie votre code de licence, à coller dans *Licence* puis *Activer*.
+Guide complet en pièce jointe 📄
+
+## 3c. Envoi de la licence (français)
+Merci [NOM] ! ✅ Votre code de licence est ci-dessous. Copiez toute la ligne, ouvrez l'application > *Licence*, collez-la et touchez *Activer*.
+[COLLEZ LE CODE WSS1... SEUL DANS LE MESSAGE SUIVANT]
+Suivez ensuite le guide : Accueil > autorisez les éléments de la liste > Réglages > activez *Envoyer automatiquement* > Accueil > *Démarrer l'automatisation*.
+[Valable jusqu'au : DATE.] En cas de problème, envoyez-moi *Accueil > Copier le diagnostic*.
+
+## 4c. Rappel de renouvellement (français)
+Bonjour [NOM], votre abonnement Screenshot Assistant se termine le [DATE]. Pour continuer, envoyez [PRIX] et je vous envoie votre code de renouvellement - à coller dans l'application sous *Licence > Saisir un code*.

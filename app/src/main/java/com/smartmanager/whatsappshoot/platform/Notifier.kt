@@ -17,12 +17,14 @@ import com.smartmanager.whatsappshoot.ui.MainActivity
 
 /** Visible indication that automation is running, plus the "tap to attach" action. All text is local. */
 class Notifier(private val context: Context) {
+    /** Texts in the language chosen in Settings (read each time so a change applies to the next notification). */
+    private val text: Context get() = LocaleHelper.wrap(context)
     private val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     init {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(NotificationChannel(CH_STATUS, context.getString(R.string.channel_status), NotificationManager.IMPORTANCE_LOW))
-            nm.createNotificationChannel(NotificationChannel(CH_ACTION, context.getString(R.string.channel_action), NotificationManager.IMPORTANCE_HIGH))
+            nm.createNotificationChannel(NotificationChannel(CH_STATUS, text.getString(R.string.channel_status), NotificationManager.IMPORTANCE_LOW))
+            nm.createNotificationChannel(NotificationChannel(CH_ACTION, text.getString(R.string.channel_action), NotificationManager.IMPORTANCE_HIGH))
         }
     }
 
@@ -42,7 +44,7 @@ class Notifier(private val context: Context) {
     )
 
     private fun action(title: Int, pi: PendingIntent) =
-        Notification.Action.Builder(null as android.graphics.drawable.Icon?, context.getString(title), pi).build()
+        Notification.Action.Builder(null as android.graphics.drawable.Icon?, text.getString(title), pi).build()
 
     /** Ongoing status line while a session is active; removed when stopped. */
     fun update(v: ControllerState) {
@@ -52,8 +54,8 @@ class Notifier(private val context: Context) {
         if (!canPost()) return
         val b = builder(CH_STATUS)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle(context.getString(R.string.app_name))
-            .setContentText(context.getString(StatusStrings.res(v.message)))
+            .setContentTitle(text.getString(R.string.app_name))
+            .setContentText(text.getString(StatusStrings.res(v.message)))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(activity(1, MainActivity::class.java))
@@ -64,8 +66,8 @@ class Notifier(private val context: Context) {
         if (v.state == AutomationState.SCREENSHOT_READY && v.screenshot != null) {
             val ready = builder(CH_ACTION)
                 .setSmallIcon(R.drawable.ic_stat)
-                .setContentTitle(context.getString(R.string.notif_ready_title))
-                .setContentText(context.getString(R.string.notif_ready_text))
+                .setContentTitle(text.getString(R.string.notif_ready_title))
+                .setContentText(text.getString(R.string.notif_ready_text))
                 .setAutoCancel(true)
                 .setContentIntent(activity(1, MainActivity::class.java))
                 .addAction(action(R.string.action_attach, activity(2, AttachTrampolineActivity::class.java)))
@@ -80,8 +82,8 @@ class Notifier(private val context: Context) {
         if (!canPost()) return
         val n = builder(CH_ACTION)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle(context.getString(R.string.notif_permission_title))
-            .setContentText(context.getString(R.string.notif_permission_text))
+            .setContentTitle(text.getString(R.string.notif_permission_title))
+            .setContentText(text.getString(R.string.notif_permission_text))
             .setAutoCancel(true)
             .setContentIntent(activity(3, ProjectionPermissionActivity::class.java))
             .build()
@@ -96,8 +98,8 @@ class Notifier(private val context: Context) {
         val pi = PendingIntent.getActivity(context, 5, Intent(shareIntent), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val n = builder(CH_ACTION)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle(context.getString(R.string.notif_share_title))
-            .setContentText(context.getString(R.string.notif_share_text))
+            .setContentTitle(text.getString(R.string.notif_share_title))
+            .setContentText(text.getString(R.string.notif_share_text))
             .setAutoCancel(true)
             .setContentIntent(pi)
             .build()
@@ -106,8 +108,8 @@ class Notifier(private val context: Context) {
 
     fun projectionNotification(): Notification = builder(CH_STATUS)
         .setSmallIcon(R.drawable.ic_stat)
-        .setContentTitle(context.getString(R.string.app_name))
-        .setContentText(context.getString(R.string.notif_projection_text))
+        .setContentTitle(text.getString(R.string.app_name))
+        .setContentText(text.getString(R.string.notif_projection_text))
         .setOngoing(true)
         .setContentIntent(activity(1, MainActivity::class.java))
         .build()

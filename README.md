@@ -8,7 +8,7 @@ no INTERNET permission, no backend, no accounts, no analytics.
 
 | Part | State |
 |---|---|
-| Licensing core (signed licences, installation-bound activation) + owner CLI | Implemented; **39 JVM tests pass** (269 in total); CLI exercised end to end |
+| Licensing core (signed licences, installation-bound activation) + owner CLI | Implemented; **39 JVM tests pass** (285 in total); CLI exercised end to end |
 | Automation logic (state machine, classifier, destination checks, duplicate guard, storage, controller) | Implemented; **168 JVM tests pass** against fakes / synthetic screens |
 | Android platform glue (accessibility service, capture engines, Keystore, notifications, share launcher) | Written; **compiles against Android 34 API**; never executed on Android |
 | Compose UI, manifest, resources, Gradle build | Written; **never compiled** (Google Maven unreachable where this was built) |

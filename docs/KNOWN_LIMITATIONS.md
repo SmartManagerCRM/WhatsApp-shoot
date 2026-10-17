@@ -43,7 +43,8 @@
 - A purely offline licence **cannot** prevent copying. Device-bound licences stop casual sharing (a copied APK + licence + data does not work on
   another phone because the installation key lives in the Android Keystore), but a determined attacker with root, a modified APK, or
   runtime hooking can bypass checks. First-use licences can be activated on many phones.
-- Replacement phone, lost phone, reinstall, "clear data": the activation is lost by design; the seller must issue a new licence (manual process).
+- Replacement phone, lost phone, reinstall, "clear data": the activation is lost by design; the customer enters the license code again (automatic binding) or, for a `device-bound` licence, the seller issues a replacement.
+- Automatic binding is not strict one-device enforcement: a copied license code can be activated on another phone before either phone contacts the owner (no activation server exists).
   There is no revocation and no automatic transfer.
 - Android Keystore behaviour (e.g. key invalidation after factory reset, OEM bugs) varies; Keystore failure blocks activation rather than bypassing it.
 - If the vendor signing key or its passphrase is lost, no further licences can be issued for builds embedding that public key.

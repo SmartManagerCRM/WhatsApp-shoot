@@ -93,3 +93,7 @@ Real-phone result for 1.1.0: the app could not find the Screenshots folder/album
   0 = tile 0, n = tile n (by position, logged). With no marker visible AND no video permission nothing is sent, because a video would look the same ("Allow video access" on Home);
 - settings saved by older versions are switched to this source once (settings version 2). "Latest screenshot from a folder" and "Take a new screenshot" remain available.
 The activity log shows `tiles: n=.. video=pppV.. choice=...` so the choice can be checked.
+
+### v1.2.0: languages and automatic license binding
+- The app (screens, notifications, floating button) ships in English, Arabic (right-to-left) and French; Settings > Language switches it at once. `TranslationsTest` fails the build if any string is missing in a language, if placeholders differ, or if a screen hard-codes English text.
+- First launch creates the installation key; a license is entered with no request code and binds to that installation. See `docs/LICENSING.md` for the limitation (a copied code can be activated on another phone).

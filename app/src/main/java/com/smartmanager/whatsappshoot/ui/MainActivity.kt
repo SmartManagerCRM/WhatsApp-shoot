@@ -22,9 +22,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import com.smartmanager.whatsappshoot.R
 import com.smartmanager.whatsappshoot.platform.AppGraph
+import com.smartmanager.whatsappshoot.platform.LocaleHelper
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val graph = AppGraph.get(this)
@@ -37,22 +44,22 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class Destination(val label: String, val icon: ImageVector)
+private data class Destination(val label: Int, val icon: ImageVector)
 
 @Composable
 private fun Root(graph: AppGraph) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val destinations = listOf(
-        Destination("Home", Icons.Filled.Home),
-        Destination("Settings", Icons.Filled.Settings),
-        Destination("License", Icons.Filled.Lock),
-        Destination("Privacy", Icons.Filled.Info),
+        Destination(R.string.nav_home, Icons.Filled.Home),
+        Destination(R.string.nav_settings, Icons.Filled.Settings),
+        Destination(R.string.nav_license, Icons.Filled.Lock),
+        Destination(R.string.nav_privacy, Icons.Filled.Info),
     )
     Scaffold(
         bottomBar = {
             NavigationBar {
                 destinations.forEachIndexed { i, d ->
-                    NavigationBarItem(selected = tab == i, onClick = { tab = i }, icon = { Icon(d.icon, contentDescription = d.label) }, label = { Text(d.label) })
+                    NavigationBarItem(selected = tab == i, onClick = { tab = i }, icon = { Icon(d.icon, contentDescription = stringResource(d.label)) }, label = { Text(stringResource(d.label)) })
                 }
             }
         },

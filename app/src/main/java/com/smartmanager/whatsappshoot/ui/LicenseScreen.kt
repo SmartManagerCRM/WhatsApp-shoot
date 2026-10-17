@@ -92,75 +92,72 @@ fun LicenseScreen(graph: AppGraph) {
     }
 
     Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        ScreenTitle("License", "One license per phone")
+        ScreenTitle(stringResource(R.string.l_title), stringResource(R.string.l_subtitle))
 
         val s = status
         if (!graph.license.keyConfigured) {
-            NoticeCard("This build has no license key", stringResource(R.string.license_no_key), Tone.BAD)
+            NoticeCard(stringResource(R.string.l_nokey_title), stringResource(R.string.license_no_key), Tone.BAD)
         } else {
             LicenseHeader(s)
         }
 
-        message?.let { m -> NoticeCard(if (messageIsError) "Could not use that code" else "Done", m, if (messageIsError) Tone.BAD else Tone.OK) }
+        message?.let { m -> NoticeCard(stringResource(if (messageIsError) R.string.l_msg_err_title else R.string.l_msg_ok_title), m, if (messageIsError) Tone.BAD else Tone.OK) }
 
         val canEnter = s != null && s !is ActivationStatus.Active
         if (s is ActivationStatus.Active) {
-            SectionCard("Renewal or change code", "Received from the seller after you renewed or changed your plan") {
-                if (!showEntry) OutlinedButton(onClick = { showEntry = true }) { Text("Enter a code") }
+            SectionCard(stringResource(R.string.l_renew_title), stringResource(R.string.l_renew_sub)) {
+                if (!showEntry) OutlinedButton(onClick = { showEntry = true }) { Text(stringResource(R.string.l_enter_code)) }
             }
         }
         if (canEnter || showEntry) {
             SectionCard(
-                if (s is ActivationStatus.Active) "Enter the code" else "Activate",
-                "Paste the license or code you received, or import it from a file",
+                stringResource(if (s is ActivationStatus.Active) R.string.l_enter_title else R.string.l_activate_title),
+                stringResource(R.string.l_activate_sub),
             ) {
                 OutlinedTextField(
                     value = input, onValueChange = { input = it; message = null },
-                    label = { Text("License or code") }, modifier = Modifier.fillMaxWidth(), minLines = 3,
+                    label = { Text(stringResource(R.string.l_field)) }, modifier = Modifier.fillMaxWidth(), minLines = 3,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { activate(input) }, enabled = input.isNotBlank() && !busy) { Text("Activate") }
-                    OutlinedButton(onClick = { input = clipboard.getText()?.text.orEmpty() }) { Text("Paste") }
-                    OutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }, enabled = !busy) { Text("From file") }
+                    Button(onClick = { activate(input) }, enabled = input.isNotBlank() && !busy) { Text(stringResource(R.string.l_activate)) }
+                    OutlinedButton(onClick = { input = clipboard.getText()?.text.orEmpty() }) { Text(stringResource(R.string.l_paste)) }
+                    OutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }, enabled = !busy) { Text(stringResource(R.string.l_from_file)) }
                 }
             }
         }
 
         if (canEnter) {
             // Normal licenses need no request: paste the code (or import the file) above. A phone-locked license is made only when the seller asks for this code.
-            SectionCard("Phone-locked license", "Only if the seller asks for it. Most licenses can be activated directly with the code above.") {
+            SectionCard(stringResource(R.string.l_pl_title), stringResource(R.string.l_pl_sub)) {
+                val sendRequestTitle = stringResource(R.string.l_send_request)
                 if (!showRequest) {
-                    TextButton(onClick = { showRequest = true }) { Text("The seller asked for an activation request") }
+                    TextButton(onClick = { showRequest = true }) { Text(stringResource(R.string.l_pl_button)) }
                 } else {
                     OutlinedButton(onClick = {
                         scope.launch {
                             request = withContext(Dispatchers.Default) { graph.license.engine.requestCode() }
                             if (request == null) { messageIsError = true; message = ctx.getString(R.string.license_err_keystore) }
                         }
-                    }) { Text(if (request == null) "Create activation request" else "Create it again") }
+                    }) { Text(stringResource(if (request == null) R.string.l_create_req else R.string.l_create_again)) }
                     request?.let { code ->
                         Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp)) {
                             Text(code, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { clipboard.setText(AnnotatedString(code)) }) { Text("Copy") }
+                            OutlinedButton(onClick = { clipboard.setText(AnnotatedString(code)) }) { Text(stringResource(R.string.l_copy)) }
                             OutlinedButton(onClick = {
-                                ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, code), "Send request").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                            }) { Text("Share") }
+                                ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, code), sendRequestTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }) { Text(stringResource(R.string.l_share)) }
                         }
-                        Text("The request holds only a public key for this installation. It is not secret.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.l_req_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
 
-        SectionCard("About") {
-            StatusRow("App version", BuildConfig.VERSION_NAME)
-            Text(
-                "The license works offline and belongs to this installation. A new phone, a reinstall or cleared app data needs a new request code and a replacement license from the seller. " +
-                    "Normal app updates keep the license. Subscription licenses end on their date unless you enter a renewal code.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        SectionCard(stringResource(R.string.l_about)) {
+            StatusRow(stringResource(R.string.l_app_version), BuildConfig.VERSION_NAME)
+            Text(stringResource(R.string.l_about_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -169,30 +166,31 @@ fun LicenseScreen(graph: AppGraph) {
 @Composable
 private fun LicenseHeader(s: ActivationStatus?) {
     when (s) {
-        null -> SectionCard("Checking your license...") { Text("One moment.", style = MaterialTheme.typography.bodyMedium) }
+        null -> SectionCard(stringResource(R.string.l_hdr_checking)) { Text(stringResource(R.string.l_hdr_wait), style = MaterialTheme.typography.bodyMedium) }
         is ActivationStatus.Active -> {
             val exp = s.license.expiresAtEpochSeconds
             val days = exp?.let { ((it - System.currentTimeMillis() / 1000) / 86_400).toInt() }
-            SectionCard("License active") {
-                StatusPill(if (days != null && days <= 7) "Renew soon" else "Active", if (days != null && days <= 7) Tone.WARN else Tone.OK)
-                StatusRow("Type", if (exp == null) "Lifetime" else "Subscription")
-                if (exp != null) StatusRow("Valid until", "${formatDate(exp)} ($days day${if (days == 1) "" else "s"} left)")
-                StatusRow("License ID", s.license.maskedId())
-                if (s.license.revision > 0) StatusRow("Revision", s.license.revision.toString())
+            SectionCard(stringResource(R.string.l_active_title)) {
+                val soon = days != null && days <= 7
+                StatusPill(stringResource(if (soon) R.string.l_pill_renew else R.string.l_pill_active), if (soon) Tone.WARN else Tone.OK)
+                StatusRow(stringResource(R.string.l_type), stringResource(if (exp == null) R.string.l_type_life else R.string.l_type_sub))
+                if (exp != null && days != null) StatusRow(stringResource(R.string.l_valid_until), stringResource(R.string.l_valid_val, formatDate(exp), days))
+                StatusRow(stringResource(R.string.l_id), s.license.maskedId())
+                if (s.license.revision > 0) StatusRow(stringResource(R.string.l_rev), s.license.revision.toString())
             }
         }
         is ActivationStatus.Expired -> NoticeCard(
-            "License expired", "This subscription ended on ${formatDate(s.license.expiresAtEpochSeconds ?: 0L)}. Ask the seller for a renewal code, then enter it below. Automation is paused until then.",
+            stringResource(R.string.l_expired_title), stringResource(R.string.l_expired_text, formatDate(s.license.expiresAtEpochSeconds ?: 0L)),
             Tone.BAD,
-        ) { Text("License ID ${s.license.maskedId()}", style = MaterialTheme.typography.bodySmall) }
+        ) { Text(stringResource(R.string.l_license_id_fmt, s.license.maskedId()), style = MaterialTheme.typography.bodySmall) }
         is ActivationStatus.Revoked -> NoticeCard(
-            "License stopped", "The seller stopped this license. Contact them; if it is reinstated they will send you a new code to enter below.",
+            stringResource(R.string.l_revoked_title), stringResource(R.string.l_revoked_text),
             Tone.BAD,
-        ) { Text("License ID ${s.license.maskedId()}", style = MaterialTheme.typography.bodySmall) }
-        ActivationStatus.NotActivated -> NoticeCard("Not activated", stringResource(R.string.license_not_activated_help), Tone.WARN)
-        ActivationStatus.RecordCorrupt -> NoticeCard("Activation damaged", stringResource(R.string.license_err_record), Tone.BAD)
-        ActivationStatus.InstallKeyMissing -> NoticeCard("Activation no longer valid", stringResource(R.string.license_err_key_missing), Tone.BAD)
-        is ActivationStatus.LicenseInvalid -> NoticeCard("License not valid", stringResource(errorRes(s.error)), Tone.BAD)
+        ) { Text(stringResource(R.string.l_license_id_fmt, s.license.maskedId()), style = MaterialTheme.typography.bodySmall) }
+        ActivationStatus.NotActivated -> NoticeCard(stringResource(R.string.l_notact_title), stringResource(R.string.license_not_activated_help), Tone.WARN)
+        ActivationStatus.RecordCorrupt -> NoticeCard(stringResource(R.string.l_corrupt_title), stringResource(R.string.license_err_record), Tone.BAD)
+        ActivationStatus.InstallKeyMissing -> NoticeCard(stringResource(R.string.l_keymissing_title), stringResource(R.string.license_err_key_missing), Tone.BAD)
+        is ActivationStatus.LicenseInvalid -> NoticeCard(stringResource(R.string.l_invalid_title), stringResource(errorRes(s.error)), Tone.BAD)
     }
 }
 

@@ -34,6 +34,7 @@ class LicenseGate(context: Context, private val appId: String) {
 
     /** Re-evaluates the stored activation (Keystore + signature work): call off the main thread. */
     fun refresh() {
+        engine.prepareInstallation() // first launch: the installation key exists before any license is entered
         val s = if (!signerMatches()) ActivationStatus.LicenseInvalid(com.smartmanager.whatsappshoot.license.LicenseError.PUBLIC_KEY_INVALID)
         else engine.status()
         active = s is ActivationStatus.Active

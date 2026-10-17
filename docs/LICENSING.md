@@ -1,18 +1,30 @@
 # Licensing: model, security properties, limits and recovery
 
 ## Commercial model implemented
-One-time purchase, lifetime entitlement, no subscription, no account, no server, no network. Licences are files/strings signed
-offline by the owner with `license-tool`; the app verifies them with an embedded public key.
+**One lifetime license per customer, bound automatically to the first installation that activates it, with no request code.**
+No activation server, no hosting, no database, no mandatory internet. Licenses are signed offline by the owner with `license-tool`; the app verifies them with an embedded public key.
+(Optional extras for the owner, off by default: subscription end dates, renewal and stop codes - see `docs/LICENSE_ADMIN.md`.)
+
+## Automatic offline binding (the default flow)
+1. **Owner:** `license-tool` (or the License Manager) issues one unique, signed license per sale (a `first-use`, lifetime license; no request code).
+2. **Customer:** installs the APK and receives the license code or file.
+3. **First launch:** the app creates an installation-specific EC P-256 key pair inside the Android Keystore (private key non-exportable). No code is shown or asked.
+4. **Customer** pastes the license or imports the file.
+5. **App** verifies the signature with the embedded public key, then writes a **signed activation record** (license + this installation's public key + time, signed by the Keystore key) into two redundant slots.
+6. **Every start:** the license signature, the activation record and a fresh proof-of-possession of the Keystore key are checked again, offline.
+7. If activation data is missing or damaged the app says so and shows the recovery step (enter the license code again).
+
+## The limitation (please read)
+Because activation is entirely offline there is no central registry of used licenses. **A copied license code can be activated independently on another phone** before either installation contacts the owner.
+Binding therefore guarantees only: *a given installation's activation cannot be copied to another phone* (the activation record needs that phone's Keystore key), not *one license = one phone*.
+Strict one-device enforcement is **not** guaranteed and cannot be offline. Mitigations the owner controls: unique license per sale (ledger/register shows who got which license id), subscriptions with end dates, stop codes, and
+`device-bound` licenses (below) for sales where strict binding matters.
 
 ## Two licence policies
 | Policy | How issued | What it prevents | What it does not prevent |
 |---|---|---|---|
-| **`device-bound`** (recommended) | Customer shows an *activation request code* from the app; owner runs `license-tool issue --request <code>` | The licence is cryptographically tied to that installation's Android-Keystore key. The same licence file will not activate on any other phone or fresh install. | Root/Xposed/patched APK; a customer who hands over their whole unlocked phone |
-| **`first-use`** | `license-tool issue --unbound` (no request needed) | Casual sharing of the *APK + activation data* (the record needs the original Keystore key) | The same licence *string* can be activated on any number of phones - a pure offline system cannot know it was used elsewhere |
-
-Requirement 9.5 describes "import licence, then create the installation key". That flow is exactly `first-use`. Because it cannot enforce
-"one installation per licence" offline, the product also offers `device-bound`, which adds one manual step (send the request code) to get genuine binding.
-Choose per sale; the tool warns when you issue `first-use`.
+| **`first-use`** (default, automatic binding) | `license-tool issue --unbound` / License Manager "Quick license" - no request code | Copying the *activation* (APK + app data) to another phone: the record needs the original Keystore key | The same license *code* being activated on several phones |
+| **`device-bound`** (optional) | Customer creates an activation request in the app (License > phone-locked); owner runs `issue --request <code>` | The license is tied to that installation's key from the start: it will not activate on any other phone or fresh install | Root/Xposed/patched APK; a customer who hands over their whole unlocked phone |
 
 ## Honest limits
 - A fully offline licence **cannot guarantee** that a licence is not used on several devices, and cannot be made impossible to bypass. An attacker who
@@ -27,20 +39,18 @@ Choose per sale; the tool warns when you issue `first-use`.
 |---|---|---|
 | App updated normally (same signing key, same `applicationId`) | Keystore key and data persist -> still activated | nothing |
 | Phone rebooted / app restarted | still activated | nothing |
-| Phone replaced / lost | new phone has no key -> not activated; the old `device-bound` licence is rejected as "different installation" | Recovery below |
+| Phone replaced / lost | new phone has no key -> not activated (a `device-bound` licence is rejected as "different installation") | Recovery below |
 | Uninstall + reinstall, "Clear data", factory reset | Keystore key and record are deleted by Android -> not activated | Recovery below |
-| APK + licence copied to another phone | rejected (`device-bound`) / activates (`first-use`, by design of that policy) | - |
+| APK + activation data copied to another phone | rejected (that phone's Keystore has no matching key) | - |
+| License *code* copied to another phone | activates there too (`first-use`) / rejected (`device-bound`) | - |
 | Activation data corrupted in one slot | backup slot takes over | nothing |
 | Activation data corrupted in both slots | "stored activation is damaged" | re-import the licence (a `device-bound` licence still matches the same Keystore key) |
 
 ## Recovery policy (fair to paying customers)
-There is no server, so recovery is manual and requires trust in the order record:
-1. Customer installs the app on the new/reset phone, opens **License > Create activation request**, and sends the code plus their order reference.
-2. Owner finds the order in the issue ledger (`--ledger issued-licenses.csv`: licence id, date, policy, order reference, installation fingerprint).
-3. Owner issues a **replacement** `device-bound` licence for the new request code (`license-tool issue --request ... --ref <same order>`) and records it in the ledger.
-4. Recommended seller policy: replacement is free for genuine hardware loss/replacement and a reasonable number of reinstalls; apply judgement to repeated requests.
-   The tool cannot revoke the old licence (there is no channel to the old phone); the old device-bound licence is useless on any phone but the old one.
-5. Customers should keep their licence file and order reference in a safe place; the app and the seller cannot recover a licence from the phone after data loss.
+- **`first-use` licenses (default):** the customer simply enters the same license code again on the new/reset phone; it binds to the new installation. No request code. The owner can check the register for repeated recoveries.
+  Recommended seller policy: free for genuine phone replacement / reinstall; use judgement for repeated requests. The owner cannot revoke the old phone offline (see `docs/LICENSE_ADMIN.md` for stop codes).
+- **`device-bound` licenses:** the customer creates an activation request on the new phone and sends it with the order reference; the owner issues a replacement for that request.
+- Customers should keep their license code/file and order reference safe; neither the app nor the seller can recover a license from the phone after data loss.
 
 ## Updates and data migration
 Normal signed updates preserve the activation as long as `applicationId` and the signing certificate stay the same. Never change `applicationId`

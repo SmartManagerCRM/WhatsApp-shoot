@@ -36,8 +36,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.smartmanager.whatsappshoot.R
 
 // ---- colours: WhatsApp-like teal, calm neutral surfaces ----
 object WssColors {
@@ -148,7 +150,7 @@ fun NoticeCard(title: String, body: String, tone: Tone = Tone.WARN, action: @Com
 fun CheckRow(ok: Boolean, title: String, detail: String, actionLabel: String? = null, onAction: () -> Unit = {}) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(
-            if (ok) Icons.Filled.CheckCircle else Icons.Filled.Warning, contentDescription = if (ok) "Ready" else "Needs attention",
+            if (ok) Icons.Filled.CheckCircle else Icons.Filled.Warning, contentDescription = stringResource(if (ok) R.string.ck_ready else R.string.ck_attention),
             tint = if (ok) WssColors.Ok else WssColors.Warn, modifier = Modifier.size(24.dp),
         )
         Column(Modifier.weight(1f)) {

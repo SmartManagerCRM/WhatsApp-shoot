@@ -120,15 +120,15 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
     var showLog by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        ScreenTitle(stringResource(R.string.app_name), "Sends your newest photo to the WhatsApp chat you open")
+        ScreenTitle(stringResource(R.string.app_name), stringResource(R.string.h_subtitle))
 
         // ---------- Hero: state + the one big control ----------
         Hero(
             active = active, paused = v.paused, message = stringResource(StatusStrings.res(v.message)),
             canStart = licensed && accessibilityOn,
             startHint = when {
-                !licensed -> "Activate your license to start"
-                !accessibilityOn -> "Turn on the accessibility service to start"
+                !licensed -> stringResource(R.string.h_hint_license)
+                !accessibilityOn -> stringResource(R.string.h_hint_accessibility)
                 else -> null
             },
             onStart = { c.start() }, onStop = { c.stop() },
@@ -137,140 +137,138 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
 
         // ---------- Needs attention ----------
         if (v.state == AutomationState.MANUAL_ACTION_REQUIRED) {
-            NoticeCard("Needs you", stringResource(StatusStrings.res(v.message)), Tone.WARN) {
+            NoticeCard(stringResource(R.string.h_needs_you), stringResource(StatusStrings.res(v.message)), Tone.WARN) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (v.screenshot != null) Button(onClick = { c.confirmAndShareManually() }) { Text("Open WhatsApp sharing") }
-                    OutlinedButton(onClick = { c.dismiss() }) { Text("Dismiss") }
+                    if (v.screenshot != null) Button(onClick = { c.confirmAndShareManually() }) { Text(stringResource(R.string.h_open_sharing)) }
+                    OutlinedButton(onClick = { c.dismiss() }) { Text(stringResource(R.string.h_dismiss)) }
                 }
             }
         }
         if (v.state == AutomationState.ERROR) {
-            NoticeCard("Something went wrong", stringResource(StatusStrings.res(v.message)), Tone.BAD) { OutlinedButton(onClick = { c.dismiss() }) { Text("Dismiss") } }
+            NoticeCard(stringResource(R.string.h_error_title), stringResource(StatusStrings.res(v.message)), Tone.BAD) { OutlinedButton(onClick = { c.dismiss() }) { Text(stringResource(R.string.h_dismiss)) } }
         }
 
         // ---------- Setup checklist ----------
         val licenseTone = describeLicense(license)
         val needsStorage = latestMode
         val allReady = licensed && accessibilityOn && (!needsStorage || (media == MediaAccess.FULL && videoOk)) && (notificationsOn || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU)
-        SectionCard(if (allReady) "Everything is ready" else "Finish the setup", if (allReady) "All permissions are in place." else "A few things are still needed.") {
-            CheckRow(licensed, "License", licenseTone.first, if (!licensed || licenseTone.second) "Open" else null, openLicense)
+        SectionCard(
+            stringResource(if (allReady) R.string.h_setup_ready else R.string.h_setup_finish),
+            stringResource(if (allReady) R.string.h_setup_ready_sub else R.string.h_setup_todo_sub),
+        ) {
+            CheckRow(licensed, stringResource(R.string.h_license), licenseTone.first, if (!licensed || licenseTone.second) stringResource(R.string.h_open) else null, openLicense)
             RowDivider()
             CheckRow(
-                accessibilityOn, "Accessibility service",
-                if (accessibilityOn) "On: notices when a WhatsApp chat is open" else "Off: turn on Screenshot Assistant under Accessibility > Installed apps",
-                if (!accessibilityOn) "Turn on" else null,
+                accessibilityOn, stringResource(R.string.h_acc),
+                stringResource(if (accessibilityOn) R.string.h_acc_on else R.string.h_acc_off),
+                if (!accessibilityOn) stringResource(R.string.h_turn_on) else null,
             ) { ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             if (needsStorage) {
                 RowDivider()
                 CheckRow(
-                    media == MediaAccess.FULL, "Photo access",
-                    when (media) { MediaAccess.FULL -> "Allowed"; MediaAccess.PARTIAL -> "Only some photos shared: choose \"Allow all\""; MediaAccess.NONE -> "Needed to find your newest picture" },
-                    if (media != MediaAccess.FULL) "Allow" else null,
+                    media == MediaAccess.FULL, stringResource(R.string.h_photo),
+                    stringResource(when (media) { MediaAccess.FULL -> R.string.h_photo_ok; MediaAccess.PARTIAL -> R.string.h_photo_partial; MediaAccess.NONE -> R.string.h_photo_none }),
+                    if (media != MediaAccess.FULL) stringResource(R.string.h_allow) else null,
                 ) { mediaLauncher.launch(mediaPermissions()) }
                 RowDivider()
                 CheckRow(
-                    videoOk, "Video access (dates only)",
-                    if (videoOk) "Allowed: the app can make sure it sends a photo" else "Lets the app make sure the newest item is a photo, not a video",
-                    if (!videoOk) "Allow" else null,
+                    videoOk, stringResource(R.string.h_video),
+                    stringResource(if (videoOk) R.string.h_video_ok else R.string.h_video_need),
+                    if (!videoOk) stringResource(R.string.h_allow) else null,
                 ) { mediaLauncher.launch(mediaPermissions()) }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 RowDivider()
                 CheckRow(
-                    notificationsOn, "Notifications", if (notificationsOn) "Allowed" else "Needed for the \"automation active\" indicator",
-                    if (!notificationsOn) "Allow" else null,
+                    notificationsOn, stringResource(R.string.h_notif), stringResource(if (notificationsOn) R.string.h_notif_ok else R.string.h_notif_need),
+                    if (!notificationsOn) stringResource(R.string.h_allow) else null,
                 ) { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
             }
             if (!latestMode || settings.captureMethod == CaptureMethod.MEDIA_PROJECTION || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
                 val captureReady = captureOn || ProjectionSession.isActive
                 RowDivider()
                 CheckRow(
-                    captureReady, "Screen capture", if (captureReady) "Ready" else "Permission needed when capturing",
-                    if (!captureReady) "Grant" else null,
+                    captureReady, stringResource(R.string.h_capture), stringResource(if (captureReady) R.string.h_capture_ready else R.string.h_capture_need),
+                    if (!captureReady) stringResource(R.string.h_grant) else null,
                 ) { ctx.startActivity(Intent(ctx, ProjectionPermissionActivity::class.java)) }
             }
         }
 
         // ---------- How it sends ----------
-        SectionCard("How it sends") {
+        SectionCard(stringResource(R.string.h_how_title)) {
             if (latestMode) {
                 if (settings.fullyAutomaticSend) {
-                    StatusPill("Fully automatic", Tone.OK)
+                    StatusPill(stringResource(R.string.h_auto_pill), Tone.OK)
                     Text(
-                        if (settings.imageSource == ImageSource.WHATSAPP_GALLERY) "Open a chat in WhatsApp and your newest photo (the first one in WhatsApp's gallery) is sent to it, with no tap needed. Videos and other files are never sent."
-                        else "Open a chat in WhatsApp and the newest screenshot is sent to it, with no tap needed. If the newest item on your phone is a video, nothing is sent.",
+                        stringResource(if (settings.imageSource == ImageSource.WHATSAPP_GALLERY) R.string.h_auto_text_gallery else R.string.h_auto_text_folder),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
-                    StatusPill("You press Send", Tone.WARN)
-                    Text("The app opens WhatsApp's share screen with your latest screenshot; you choose the chat and press Send.", style = MaterialTheme.typography.bodyMedium)
-                    OutlinedButton(onClick = openSettings) { Text("Turn on fully automatic sending") }
+                    StatusPill(stringResource(R.string.h_manual_pill), Tone.WARN)
+                    Text(stringResource(R.string.h_manual_text), style = MaterialTheme.typography.bodyMedium)
+                    OutlinedButton(onClick = openSettings) { Text(stringResource(R.string.h_manual_open_settings)) }
                 }
             } else {
-                Text("Takes a new screenshot of the screen, then lets you attach it. Switch to \"latest screenshot\" in Settings to send an existing one.", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.h_capture_mode_text), style = MaterialTheme.typography.bodyMedium)
             }
         }
 
         // ---------- Quick actions ----------
         if (active) {
-            SectionCard("Quick actions") {
+            SectionCard(stringResource(R.string.h_quick_title)) {
                 FilledTonalButton(
                     onClick = { if (latestMode) c.captureNow() else if (countdown > 0) countdown = 0 else countdown = COUNTDOWN_SECONDS },
                     enabled = !v.paused, modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (latestMode) "Send newest picture now" else if (countdown > 0) "Cancel ($countdown)" else "Capture screenshot") }
-                if (countdown > 0 && !latestMode) Text("Switch to the screen you want. Capturing in $countdown s.", style = MaterialTheme.typography.bodySmall)
+                ) { Text(if (latestMode) stringResource(R.string.h_send_now) else if (countdown > 0) stringResource(R.string.h_cancel_n, countdown) else stringResource(R.string.h_capture_btn)) }
+                if (countdown > 0 && !latestMode) Text(stringResource(R.string.h_capture_countdown, countdown), style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { c.resetCurrentChatStatus() }) { Text("Reset this chat") }
-                    TextButton(onClick = { c.resetAllChatStatus() }) { Text("Reset all chats") }
+                    TextButton(onClick = { c.resetCurrentChatStatus() }) { Text(stringResource(R.string.h_reset_chat)) }
+                    TextButton(onClick = { c.resetAllChatStatus() }) { Text(stringResource(R.string.h_reset_all)) }
                 }
             }
         }
 
         // ---------- Preview ----------
         v.screenshot?.let { shot ->
-            SectionCard("Screenshot ready", "${shot.widthPx} x ${shot.heightPx} px, ${shot.format.name}") {
+            SectionCard(stringResource(R.string.h_shot_title), stringResource(R.string.h_shot_sub, shot.widthPx, shot.heightPx, shot.format.name)) {
                 Preview(shot)
                 Text(
-                    if (settings.fullyAutomaticSend && latestMode) "Automatic sending is on: the app sends it inside the open chat. If anything does not match, it stops and nothing is sent."
-                    else "Attaching opens WhatsApp's share screen. You choose the chat and press Send yourself.",
+                    stringResource(if (settings.fullyAutomaticSend && latestMode) R.string.h_shot_auto_text else R.string.h_shot_manual_text),
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = { c.requestAttach() }, enabled = v.state != AutomationState.PREPARING_ATTACHMENT && v.state != AutomationState.CAPTURING_SCREEN) { Text("Attach to WhatsApp") }
-                    OutlinedButton(onClick = { c.deleteScreenshot() }) { Text("Delete") }
-                    TextButton(onClick = { c.dismiss() }) { Text("Done") }
+                    Button(onClick = { c.requestAttach() }, enabled = v.state != AutomationState.PREPARING_ATTACHMENT && v.state != AutomationState.CAPTURING_SCREEN) { Text(stringResource(R.string.h_attach)) }
+                    OutlinedButton(onClick = { c.deleteScreenshot() }) { Text(stringResource(R.string.h_delete)) }
+                    TextButton(onClick = { c.dismiss() }) { Text(stringResource(R.string.h_done)) }
                 }
             }
         }
 
         // ---------- Activity & diagnostics (no message text, names or numbers) ----------
-        SectionCard("Activity & diagnostics") {
+        SectionCard(stringResource(R.string.h_diag_title)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (lastScreen.isNotEmpty()) "Last WhatsApp screen: $lastScreen" else "Nothing seen from WhatsApp yet",
+                    if (lastScreen.isNotEmpty()) stringResource(R.string.h_last_screen, lastScreen) else stringResource(R.string.h_none_yet),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { showLog = !showLog }) { Text(if (showLog) "Hide log" else "Show log") }
+                TextButton(onClick = { showLog = !showLog }) { Text(stringResource(if (showLog) R.string.h_hide_log else R.string.h_show_log)) }
             }
             if (showLog) {
                 Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    if (recent.isEmpty()) Text("No activity yet.", style = MaterialTheme.typography.bodySmall)
+                    if (recent.isEmpty()) Text(stringResource(R.string.h_no_activity), style = MaterialTheme.typography.bodySmall)
                     recent.forEach { Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace) }
                 }
             }
-            Text(
-                "If something does not work: reproduce it (open a chat, wait for the app to act), then copy the diagnostics and send them to the seller. " +
-                    "They contain technical steps and screen identifiers only, never message text, names or numbers.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text(stringResource(R.string.h_diag_help), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val shareTitle = stringResource(R.string.h_share_title)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { clipboard.setText(AnnotatedString(diagnosticsText(ctx))) }) { Text("Copy diagnostics") }
+                OutlinedButton(onClick = { clipboard.setText(AnnotatedString(diagnosticsText(ctx))) }) { Text(stringResource(R.string.h_copy_diag)) }
                 OutlinedButton(onClick = {
                     ctx.startActivity(
-                        Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, diagnosticsText(ctx)), "Share diagnostics")
+                        Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, diagnosticsText(ctx)), shareTitle)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                     )
-                }) { Text("Share") }
+                }) { Text(stringResource(R.string.h_share)) }
             }
         }
     }
@@ -291,7 +289,7 @@ private fun Hero(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(Modifier.size(14.dp).clip(CircleShape).background(dot))
                 Text(
-                    if (!active) "Automation is off" else if (paused) "Paused" else "Automation is on",
+                    stringResource(if (!active) R.string.h_hero_off else if (paused) R.string.h_hero_paused else R.string.h_hero_on),
                     style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White,
                 )
             }
@@ -301,12 +299,12 @@ private fun Hero(
                     onClick = if (active) onStop else onStart, enabled = active || canStart,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF053F38), disabledContainerColor = Color.White.copy(alpha = 0.3f), disabledContentColor = Color.White.copy(alpha = 0.7f)),
                     modifier = Modifier.weight(1f),
-                ) { Text(if (active) "Stop" else "Start automation", fontWeight = FontWeight.SemiBold) }
+                ) { Text(stringResource(if (active) R.string.h_stop else R.string.h_start), fontWeight = FontWeight.SemiBold) }
                 if (active) {
                     OutlinedButton(
                         onClick = onPause, border = BorderStroke(1.dp, Color.White.copy(alpha = 0.7f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    ) { Text(if (paused) "Resume" else "Pause") }
+                    ) { Text(stringResource(if (paused) R.string.h_resume else R.string.h_pause)) }
                 }
             }
             if (startHint != null && !active) Text(startHint, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))
@@ -315,21 +313,27 @@ private fun Hero(
 }
 
 /** Short license description for the checklist, and whether it deserves an "Open" button (ending soon). */
+@Composable
 private fun describeLicense(s: ActivationStatus?): Pair<String, Boolean> = when (s) {
-    null -> "Checking..." to false
+    null -> stringResource(R.string.h_lic_checking) to false
     is ActivationStatus.Active -> {
         val exp = s.license.expiresAtEpochSeconds
-        if (exp == null) "Active: lifetime" to false else {
+        if (exp == null) stringResource(R.string.h_lic_lifetime) to false else {
             val days = ((exp - System.currentTimeMillis() / 1000) / 86_400).toInt()
-            "Active until ${formatDate(exp)} ($days day${if (days == 1) "" else "s"} left)" to (days <= 7)
+            stringResource(R.string.h_lic_until, formatDate(exp), days) to (days <= 7)
         }
     }
-    is ActivationStatus.Expired -> "Expired on ${formatDate(s.license.expiresAtEpochSeconds ?: 0L)}: enter a renewal code" to true
-    is ActivationStatus.Revoked -> "Stopped by the seller: contact them" to true
-    else -> "Not activated" to true
+    is ActivationStatus.Expired -> stringResource(R.string.h_lic_expired, formatDate(s.license.expiresAtEpochSeconds ?: 0L)) to true
+    is ActivationStatus.Revoked -> stringResource(R.string.h_lic_revoked) to true
+    else -> stringResource(R.string.h_lic_not) to true
 }
 
-fun formatDate(epochSec: Long): String = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(epochSec * 1000))
+/** Date in the app's language (not the phone's), e.g. 17 Oct 2026 / ١٧ أكتوبر ٢٠٢٦ / 17 oct. 2026. */
+@Composable
+fun formatDate(epochSec: Long): String {
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    return java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, locale).format(java.util.Date(epochSec * 1000))
+}
 
 private fun mediaPermissions(): Array<String> =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
@@ -350,7 +354,7 @@ private fun Preview(shot: StoredScreenshot) {
     bitmap?.let {
         Image(
             bitmap = it.asImageBitmap(),
-            contentDescription = "Screenshot preview",
+            contentDescription = stringResource(R.string.h_preview_cd),
             modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp).clip(MaterialTheme.shapes.medium),
             contentScale = ContentScale.Fit, // never cropped
         )

@@ -8,7 +8,8 @@
 | `POST_NOTIFICATIONS` (Android 13+) | Active indicator, Pause/Stop, Attach action | Optional; without it use the in-app status and the floating button |
 | `<queries>` for com.whatsapp, com.whatsapp.w4b | See whether WhatsApp is installed (Android 11+) | |
 | `READ_MEDIA_IMAGES` (Android 13+), `READ_EXTERNAL_STORAGE` (Android 12 and below, `maxSdkVersion=32`) | Find the newest image in the Screenshots folder | Read-only, images only; asks MediaStore only for folders named like the Screenshots folder; only the chosen image is opened; copied to private temporary storage; never uploaded |
-| **Not requested** | INTERNET, network state, write/manage storage, video/audio media, location metadata, overlay (SYSTEM_ALERT_WINDOW), contacts, SMS, microphone, camera | `PolicyTest` enforces this |
+| `READ_MEDIA_VIDEO` (Android 13+) | Be sure the newest item is a photo (photo-only sending) | Only the DATE of the newest video is queried (and whether a video in the screenshots folder is as new as the screenshot); video content is never opened, read or copied |
+| **Not requested** | INTERNET, network state, write/manage storage, audio media, location metadata, overlay (SYSTEM_ALERT_WINDOW), contacts, SMS, microphone, camera | `PolicyTest` enforces this |
 
 ## Data handling
 - No network access, analytics, crash reporting, accounts or remote licence checks. No third-party SDKs.

@@ -41,8 +41,11 @@ class FakeSource(val clock: FakeClock) : ScreenshotSource {
 class FakeLatestProvider(private val source: FakeSource, private val repo: ScreenshotRepository, clock: Clock) : LatestScreenshotProvider {
     val selector = ScreenshotSelector(source, clock)
     var finds = 0
-    var newestOverall = false
-    override fun isNewestPicture(image: LatestImage) = newestOverall
+    var route = GalleryRoute.ALBUM
+    var newestOverall: Boolean
+        get() = route == GalleryRoute.LANDING
+        set(v) { route = if (v) GalleryRoute.LANDING else GalleryRoute.ALBUM }
+    override fun galleryRoute(image: LatestImage, folders: List<String>) = route
     var failStaging = false
     var hangFind = false
     private var pendingFind: ((SelectionResult) -> Unit)? = null

@@ -19,12 +19,13 @@ class PolicyTest {
     }
 
     @Test fun noBroadStorageOrOverlayOrContactPermissions() {
-        for (p in listOf("WRITE_EXTERNAL_STORAGE", "MANAGE_EXTERNAL_STORAGE", "SYSTEM_ALERT_WINDOW", "READ_CONTACTS", "READ_SMS", "RECORD_AUDIO", "CAMERA", "READ_MEDIA_VIDEO", "READ_MEDIA_AUDIO", "ACCESS_MEDIA_LOCATION")) {
+        for (p in listOf("WRITE_EXTERNAL_STORAGE", "MANAGE_EXTERNAL_STORAGE", "SYSTEM_ALERT_WINDOW", "READ_CONTACTS", "READ_SMS", "RECORD_AUDIO", "CAMERA", "READ_MEDIA_AUDIO", "ACCESS_MEDIA_LOCATION")) {
             assertFalse("$p must not be requested", manifest.contains(p))
         }
         // Reading existing screenshots needs image read access only; legacy permission is capped to the Android versions that need it.
         val perms = Regex("<uses-permission[^>]*>").findAll(manifest).map { it.value }.toList()
         assertTrue(perms.any { it.contains("READ_MEDIA_IMAGES") })
+        assertTrue("video permission is read-only date lookups for the photo-only guarantee", perms.any { it.contains("READ_MEDIA_VIDEO") })
         assertTrue(perms.any { it.contains("READ_EXTERNAL_STORAGE") && it.contains("maxSdkVersion=\"32\"") })
     }
 

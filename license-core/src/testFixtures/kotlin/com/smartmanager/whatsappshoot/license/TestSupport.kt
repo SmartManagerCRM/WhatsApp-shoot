@@ -10,13 +10,15 @@ import java.security.spec.ECGenParameterSpec
 class FakeInstallKeys : InstallKeyProvider {
     private var pair: KeyPair? = null
     var failCreation = false
+    /** Number of upcoming sign() calls that return null (Keystore briefly busy); Int.MAX_VALUE = permanently. */
+    var signFailures = 0
     override fun publicKeyX509(): ByteArray? = pair?.public?.encoded
     override fun ensureKey(): ByteArray {
         if (failCreation) throw InstallKeyException("keystore down")
         if (pair == null) pair = newEcKeyPair()
         return pair!!.public.encoded
     }
-    override fun sign(data: ByteArray): ByteArray? = pair?.let {
+    override fun sign(data: ByteArray): ByteArray? = if (signFailures > 0) { signFailures--; null } else pair?.let {
         Signature.getInstance(LicenseFormat.SIGNATURE_ALGORITHM).run { initSign(it.private); update(data); sign() }
     }
     override fun deleteKey() { pair = null }

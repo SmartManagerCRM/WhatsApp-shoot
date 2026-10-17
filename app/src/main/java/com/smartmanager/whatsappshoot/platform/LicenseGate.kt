@@ -37,6 +37,7 @@ class LicenseGate(context: Context, private val appId: String) {
         val s = if (!signerMatches()) ActivationStatus.LicenseInvalid(com.smartmanager.whatsappshoot.license.LicenseError.PUBLIC_KEY_INVALID)
         else engine.status()
         active = s is ActivationStatus.Active
+        com.smartmanager.whatsappshoot.logic.ActivityLog.add("license: ${s::class.simpleName}" + engine.lastDetail.takeIf { it.isNotEmpty() }?.let { " ($it)" }.orEmpty())
         _status.value = s
     }
 

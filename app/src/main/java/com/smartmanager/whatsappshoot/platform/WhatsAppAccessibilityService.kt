@@ -281,6 +281,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     private var lastDriveTrace = ""
     private var lastLabels = ""
     private var lastSendCands = ""
+    private var lastTileLog = ""
 
     private fun driveShareFlow(pkg: String) {
         val c = graph.controller
@@ -413,7 +414,17 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         // Gallery tiles only (the chat's own media thumbnails use other ids); the camera tile is excluded.
         val thumb = if (!pickerOpen) null else sc.clicks.filter { ci ->
             ci.id in TILE_IDS && lc(ci.desc).let { d -> CAMERA_WORDS.none { d.contains(it) } } && ci.rect.top >= h * 0.12 && ci.rect.bottom <= h
-        }.minWithOrNull(compareBy<ClickInfo>({ it.rect.top }, { it.rect.left }))?.node
+        }.minWithOrNull(compareBy<ClickInfo>({ it.rect.top }, { it.rect.left }))
+        val thumbNode = thumb?.node
+        // A video tile shows a duration (m:ss) or a "video" description inside its bounds: photos only are ever sent.
+        val thumbIsVideo = thumb != null && (VIDEO_WORDS.any { lc(thumb.desc).contains(it) } || sc.labels.any { (t, n) ->
+            val r = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+            thumb.rect.contains(r.centerX(), r.centerY()) && (DURATION.matches(t.trim()) || VIDEO_WORDS.any { w3 -> lc(t).contains(w3) })
+        })
+        if (thumb != null) {
+            val d = "tile: desc=${lc(thumb.desc).take(30)} video=$thumbIsVideo inside=${sc.labels.count { (_, n) -> val r = android.graphics.Rect().also { n.getBoundsInScreen(it) }; thumb.rect.contains(r.centerX(), r.centerY()) }}"
+            if (d != lastTileLog) { lastTileLog = d; ActivityLog.add(d) }
+        }
         // Send: WhatsApp's own id or a "send" label only. Position-based guesses are NOT used here: the chat's camera button sits in the same corner.
         val send = sc.sendNode?.let { it to "id" }
             ?: sc.clicks.firstOrNull { ci -> lc(ci.desc).let { d -> d.isNotEmpty() && SEND_WORDS.any { w2 -> d.contains(w2) } } }?.let { it.node to "label" }
@@ -421,7 +432,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val view = com.smartmanager.whatsappshoot.logic.AttachScreenView(
             chatVisible = chatVisible, attachButton = attach != null, galleryEntry = gallery != null,
             pickerOpen = pickerOpen, albumSelected = currentAlbumOk, albumLabel = albumItem != null,
-            albumsSwitcher = spinner != null, thumbnail = thumb != null, sendButton = send != null,
+            albumsSwitcher = spinner != null, thumbnail = thumb != null, thumbIsVideo = thumbIsVideo, sendButton = send != null,
             canScroll = popupScroll != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null,
         )
         if (pickerOpen && !currentAlbumOk) {
@@ -441,7 +452,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickGallery -> clickAncestor(gallery)
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbum -> clickAncestor(albumItem)
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbumsSwitcher -> clickAncestor(spinner?.node)
-            com.smartmanager.whatsappshoot.logic.AttachAction.ClickThumbnail -> clickAncestor(thumb)
+            com.smartmanager.whatsappshoot.logic.AttachAction.ClickThumbnail -> clickAncestor(thumbNode)
             com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker -> popupScroll?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
             // The only place WhatsApp's Send button is tapped: opt-in setting, verified chat, picture chosen from the verified album.
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickSend -> clickAncestor(send?.first)
@@ -501,6 +512,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val SHARE_TICK_MS = 400L
         private val ATTACH_IDS = setOf("input_attach_button", "attach_button", "attach")
         private val GALLERY_IDS = setOf("pickfiletype_gallery_holder")
+        private val DURATION = Regex("\\d{1,2}:\\d{2}(:\\d{2})?")
+        private val VIDEO_WORDS = listOf("video", "فيديو", "vídeo", "vidéo", "видео", "视频", "ビデオ", "동영상", "film")
         private val SPINNER_IDS = setOf("gallery_spinner")
         private val TILE_IDS = setOf("media_item_view")
         private val ATTACH_WORDS = listOf("attach", "إرفاق", "ارفاق", "adjuntar", "anexar", "joindre", "anhängen", "allega", "ekle", "lampirkan", "прикрепить", "附件", "添付", "첨부")

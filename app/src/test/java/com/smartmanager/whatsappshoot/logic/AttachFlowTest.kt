@@ -154,4 +154,15 @@ class AttachFlowTest {
         repeat(40) { clock.advance(500); val a = e.step(galleryRecents.copy(thumbnail = false)); if (a is AttachAction.Done) done = a }
         assertEquals(AttachAction.Done(ShareOutcome.ABORT_NO_IMAGE), done)
     }
+
+    @Test fun videoTile_isNeverSent_inEitherRoute() {
+        for (landing in listOf(true, false)) {
+            val e = AttachFlowEngine(3, clock, landingFirst = landing)
+            e.step(chat); tick(); e.step(menu); tick()
+            if (!landing) { e.step(galleryRecents); tick(); e.step(dropdown); tick() }
+            val video = (if (landing) galleryRecents else galleryScreenshots).copy(thumbIsVideo = true)
+            e.step(video); clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100)
+            assertEquals(AttachAction.Done(ShareOutcome.ABORT_NOT_PHOTO), e.step(video))
+        }
+    }
 }

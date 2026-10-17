@@ -17,6 +17,7 @@ import com.smartmanager.whatsappshoot.logic.AutomationSettings
 import com.smartmanager.whatsappshoot.logic.CaptureResult
 import com.smartmanager.whatsappshoot.logic.Clock
 import com.smartmanager.whatsappshoot.logic.FailureReason
+import com.smartmanager.whatsappshoot.logic.GalleryRoute
 import com.smartmanager.whatsappshoot.logic.ImageFormat
 import com.smartmanager.whatsappshoot.logic.ImageFormats
 import com.smartmanager.whatsappshoot.logic.LatestImage
@@ -145,26 +146,63 @@ class MediaStoreLatestProvider(
         }
     }
 
+    /** Reading the newest video's DATE only: needs the video permission (or the legacy storage permission below Android 13). */
+    private fun videoPermitted(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+        else context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+
     @Suppress("DEPRECATION")
-    override fun isNewestPicture(image: LatestImage): Boolean = try {
+    private fun newestDates(uri: Uri, idCol: String, dateCol: String, pendingCol: String?, trashedCol: String?, extraSelection: String?, extraArgs: Array<String>?, count: Int): List<Pair<Long, Long>> {
         val q = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-        val uri = if (q) MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        var selection: String? = if (q) "${MediaStore.Images.Media.IS_PENDING} = 0" else null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) selection = (selection?.let { "$it AND " } ?: "") + "${MediaStore.Images.Media.IS_TRASHED} = 0"
+        val parts = ArrayList<String>()
+        extraSelection?.let { parts += it }
+        if (q && pendingCol != null) parts += "$pendingCol = 0"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && trashedCol != null) parts += "$trashedCol = 0"
         val args = Bundle().apply {
-            selection?.let { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, it) }
-            putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(MediaStore.Images.Media.DATE_ADDED))
+            if (parts.isNotEmpty()) putString(ContentResolver.QUERY_ARG_SQL_SELECTION, parts.joinToString(" AND "))
+            extraArgs?.let { putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, it) }
+            putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(dateCol))
             putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
-            putInt(ContentResolver.QUERY_ARG_LIMIT, 2)
+            putInt(ContentResolver.QUERY_ARG_LIMIT, count)
         }
-        context.contentResolver.query(uri, arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATE_ADDED), args, null)?.use { c ->
-            val rows = ArrayList<Pair<Long, Long>>()
-            while (c.moveToNext() && rows.size < 2) rows += c.getLong(0) to c.getLong(1)
-            // Newest beyond doubt: it is our screenshot and the next one is strictly older (same-second ties are ambiguous).
-            rows.isNotEmpty() && rows[0].first == image.candidate.id && (rows.size < 2 || rows[1].second < rows[0].second)
-        } ?: false
+        val rows = ArrayList<Pair<Long, Long>>()
+        context.contentResolver.query(uri, arrayOf(idCol, dateCol), args, null)?.use { c ->
+            while (c.moveToNext() && rows.size < count) rows += c.getLong(0) to c.getLong(1)
+        }
+        return rows
+    }
+
+    /**
+     * Decides how WhatsApp's gallery may be used so that a PHOTO (never a video) is sent:
+     *  - LANDING only if the screenshot is the newest image AND (video access granted and) no video is as new or newer;
+     *  - BLOCKED_VIDEO if a video in the screenshots folder is as new or newer than the screenshot;
+     *  - otherwise ALBUM.
+     */
+    override fun galleryRoute(image: LatestImage, folders: List<String>): GalleryRoute = try {
+        val q = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+        val imgUri = if (q) MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val imgs = newestDates(imgUri, MediaStore.Images.Media._ID, MediaStore.Images.Media.DATE_ADDED, MediaStore.Images.Media.IS_PENDING, "is_trashed", null, null, 2)
+        val shotAdded = image.candidate.dateAddedSec
+        val newestImage = imgs.isNotEmpty() && imgs[0].first == image.candidate.id && (imgs.size < 2 || imgs[1].second < imgs[0].second)
+        if (!videoPermitted()) {
+            GalleryRoute.ALBUM
+        } else {
+            val vidUri = if (q) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            val newestVideo = newestDates(vidUri, MediaStore.Video.Media._ID, MediaStore.Video.Media.DATE_ADDED, MediaStore.Video.Media.IS_PENDING, "is_trashed", null, null, 1).firstOrNull()
+            if (newestImage && (newestVideo == null || newestVideo.second < shotAdded)) {
+                GalleryRoute.LANDING
+            } else {
+                // A video inside the screenshots folder that is as new as the screenshot could become the first album tile.
+                val leaves = ScreenshotFolderMatcher.leafNames(folders)
+                val pathCol = if (q) MediaStore.Video.Media.RELATIVE_PATH else MediaStore.Video.Media.DATA
+                val like = leaves.joinToString(" OR ") { "$pathCol LIKE ?" }
+                val folderVideo = if (leaves.isEmpty()) null else
+                    newestDates(vidUri, MediaStore.Video.Media._ID, MediaStore.Video.Media.DATE_ADDED, MediaStore.Video.Media.IS_PENDING, "is_trashed", "($like)", leaves.map { if (q) "%$it/" else "%/$it/%" }.toTypedArray(), 1).firstOrNull()
+                if (folderVideo != null && folderVideo.second >= shotAdded) GalleryRoute.BLOCKED_VIDEO else GalleryRoute.ALBUM
+            }
+        }
     } catch (e: Exception) {
-        false
+        GalleryRoute.ALBUM
     }
 
     /** Copies the chosen image into private temporary storage (shared with WhatsApp through FileProvider). */

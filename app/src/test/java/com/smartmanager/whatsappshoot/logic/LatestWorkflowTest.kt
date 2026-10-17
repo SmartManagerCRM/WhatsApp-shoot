@@ -299,6 +299,12 @@ class LatestWorkflowTest {
         assertEquals("setting off: always the Screenshots album", AttachAction.ClickAlbumsSwitcher, off.gallery())
     }
 
+    @Test fun fullAutoSend_videoNewerInScreenshotsFolder_isNotSent() {
+        val r = autoRig(); r.provider.route = GalleryRoute.BLOCKED_VIDEO; r.open("Alice", outgoing = 4)
+        assertEquals(MANUAL_ACTION_REQUIRED, r.state); assertEquals(StatusMessage.AUTO_SEND_NOT_PHOTO, r.message)
+        assertFalse(r.controller.attachFlowActive)
+    }
+
     @Test fun fullAutoSend_confirmedWhenEvidenceExists() {
         val r = autoRig(); r.open("Alice", outgoing = 4)
         r.driveToSend(); r.tick()

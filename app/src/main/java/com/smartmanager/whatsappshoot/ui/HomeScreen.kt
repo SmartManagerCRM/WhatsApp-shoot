@@ -72,6 +72,8 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
     var captureOn by remember { mutableStateOf(graph.captureReady()) }
     var notificationsOn by remember { mutableStateOf(notificationsAllowed(ctx)) }
     var media by remember { mutableStateOf(graph.mediaAccess()) }
+    fun videoGranted() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == android.content.pm.PackageManager.PERMISSION_GRANTED else true
+    var videoOk by remember { mutableStateOf(videoGranted()) }
     var recent by remember { mutableStateOf(ActivityLog.last(8)) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -79,11 +81,12 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
             captureOn = graph.captureReady()
             notificationsOn = notificationsAllowed(ctx)
             media = graph.mediaAccess()
+            videoOk = videoGranted()
             recent = ActivityLog.last(8)
             delay(1000)
         }
     }
-    val mediaLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { media = graph.mediaAccess() }
+    val mediaLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { media = graph.mediaAccess(); videoOk = videoGranted() }
     val latestMode = settings.imageSource == ImageSource.LATEST_SCREENSHOT
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notificationsOn = it }
 
@@ -141,11 +144,17 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
             ) {
                 OutlinedButton(onClick = {
                     mediaLauncher.launch(
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
                         else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
                     )
                 }) { Text("Allow photo access") }
             }
+        }
+        if (latestMode && media == MediaAccess.FULL && !videoOk) {
+            InfoCard(
+                "Allow video access too",
+                "So the app can be sure your newest item is a photo, not a video. It only reads the date of the newest video, never its content.",
+            ) { OutlinedButton(onClick = { mediaLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)) }) { Text("Allow") } }
         }
         if (!notificationsOn && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             InfoCard("Notifications are off", "Without notifications the app cannot show its \"automation active\" indicator or the Attach action.") {

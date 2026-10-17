@@ -48,6 +48,7 @@ enum class ShareOutcome {
     ABORT_NO_GALLERY,
     ABORT_NO_ALBUM,
     ABORT_NO_IMAGE,
+    ABORT_NOT_PHOTO,
 }
 
 /**

@@ -406,8 +406,14 @@ class AutomationController(
         set(StatusMessage.PREPARING_ATTACHMENT)
         if (allowSend) {
             // Fully automatic: stay in the open chat and use WhatsApp's own attach menu (no recipient list, so no name matching).
-            val landing = settings().landingGalleryFirst && shotImage?.let { latest.isNewestPicture(it) } == true
-            ActivityLog.add(if (landing) "screenshot is the newest picture: using the landing gallery" else "using the Screenshots album")
+            val route = shotImage?.let { latest.galleryRoute(it, settings().screenshotFolders) } ?: GalleryRoute.ALBUM
+            if (route == GalleryRoute.BLOCKED_VIDEO) {
+                ActivityLog.add("a video newer than the screenshot is in the screenshots folder: not sending")
+                attachmentFailed(StatusMessage.AUTO_SEND_NOT_PHOTO)
+                return
+            }
+            val landing = settings().landingGalleryFirst && route == GalleryRoute.LANDING
+            ActivityLog.add(if (landing) "screenshot is the newest item on the phone: using the landing gallery" else "using the Screenshots album")
             attachEngine = AttachFlowEngine(baselineOutgoing, clock, landing)
             shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
             ActivityLog.add("in-chat attach flow started")
@@ -507,6 +513,7 @@ class AutomationController(
             ShareOutcome.ABORT_NO_GALLERY -> attachmentFailed(StatusMessage.AUTO_SEND_NO_GALLERY)
             ShareOutcome.ABORT_NO_ALBUM -> attachmentFailed(StatusMessage.AUTO_SEND_NO_ALBUM)
             ShareOutcome.ABORT_NO_IMAGE -> attachmentFailed(StatusMessage.AUTO_SEND_NO_IMAGE)
+            ShareOutcome.ABORT_NOT_PHOTO -> attachmentFailed(StatusMessage.AUTO_SEND_NOT_PHOTO)
         }
     }
 

@@ -76,3 +76,11 @@ On a real phone the Screenshots-album route stalled in WhatsApp's landing galler
 when (and only when) the phone's media library confirms that the staged screenshot is the newest picture on the device (`isNewestPicture`: it is the newest image, and the next one is strictly older).
 If a newer picture exists - or the setting "Use WhatsApp's landing gallery" is off - the Screenshots-album route (v1.0.6) is used instead.
 Limit: only images are checked (the app has no video permission), so a video newer than the screenshot could still be the first tile. That is the accepted trade-off of this mode.
+
+### v1.0.8: photos only
+Real-phone result for 1.0.7: it worked, but when the newest item on the phone was a video, the video was sent.
+- New route decision (`galleryRoute`): the landing gallery is used only if the screenshot is the newest image AND (video access granted) no video is as new or newer. If a newer video exists elsewhere, the Screenshots album is used.
+  If a video as new as the screenshot sits in the screenshots folder, nothing is sent ("newest item is a video").
+- If the tile about to be tapped shows a duration (m:ss) or a "video" description, nothing is sent.
+- This needs `READ_MEDIA_VIDEO` (date lookups only). Without it the landing gallery is not used and the Screenshots album route applies.
+- Licence persistence: the Keystore can be briefly unavailable (e.g. just after boot). The activation check now retries and, if the Keystore still holds the recorded key but cannot sign right now, keeps the licence active instead of discarding it. Records copied to another phone are still rejected (that phone has no such key).

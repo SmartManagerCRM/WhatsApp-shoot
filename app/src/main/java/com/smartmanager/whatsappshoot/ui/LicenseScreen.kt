@@ -97,7 +97,7 @@ fun LicenseScreen(graph: AppGraph) {
         }
         StatusRow("Product version", BuildConfig.VERSION_NAME)
 
-        if (s !is ActivationStatus.Active) {
+        if (s != null && s !is ActivationStatus.Active) {
             Text("Activate", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
                 value = input,

@@ -204,6 +204,7 @@ object StatusStrings {
         com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_NO_GALLERY -> R.string.status_auto_no_gallery
         com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_NO_ALBUM -> R.string.status_auto_no_album
         com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_NO_IMAGE -> R.string.status_auto_no_image
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_NOT_PHOTO -> R.string.status_auto_not_photo
         com.smartmanager.whatsappshoot.logic.StatusMessage.CHAT_STATUS_RESET -> R.string.status_chat_reset
     }
 }

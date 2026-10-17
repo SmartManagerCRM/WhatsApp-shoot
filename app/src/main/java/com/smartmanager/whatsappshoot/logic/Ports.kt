@@ -48,8 +48,19 @@ interface LatestScreenshotProvider {
     fun find(settings: AutomationSettings, callback: (SelectionResult) -> Unit)
     fun stage(image: LatestImage, settings: AutomationSettings, callback: (CaptureResult) -> Unit)
 
-    /** True only if [image] is, beyond doubt, the newest picture in the whole media library (so WhatsApp's first gallery tile is that image). */
-    fun isNewestPicture(image: LatestImage): Boolean = false
+    /** Which gallery route is safe for sending [image] as a photo (see [GalleryRoute]). */
+    fun galleryRoute(image: LatestImage, folders: List<String>): GalleryRoute = GalleryRoute.ALBUM
+}
+
+enum class GalleryRoute {
+    /** [image] is the newest item (photo or video) on the phone: WhatsApp's first landing-gallery tile is it. */
+    LANDING,
+
+    /** Use the Screenshots album of WhatsApp's gallery. */
+    ALBUM,
+
+    /** A video newer than [image] sits in the screenshots folder: a photo-only send cannot be guaranteed. */
+    BLOCKED_VIDEO,
 }
 
 enum class DirectSelectOutcome { SELECTED, AMBIGUOUS, NOT_FOUND, TIMEOUT }
@@ -62,7 +73,7 @@ enum class StatusMessage {
     LOOKING_FOR_SCREENSHOT, LATEST_READY, NO_SCREENSHOT, MEDIA_PERMISSION_REQUIRED, MEDIA_PERMISSION_PARTIAL, SCREENSHOT_UNREADABLE,
     ALREADY_HANDLED_CHAT, SAME_IMAGE_HANDLED, NOT_NEWER, IDENTITY_UNRELIABLE, NEWER_SCREENSHOT_UNREADABLE,
     SEND_CONFIRMED, SEND_UNCONFIRMED, AUTO_SEND_AMBIGUOUS, AUTO_SEND_NOT_FOUND, AUTO_SEND_RECIPIENT_MISMATCH,
-    AUTO_SEND_RECIPIENT_UNVERIFIED, AUTO_SEND_UNAVAILABLE, AUTO_SEND_TIMEOUT, AUTO_SEND_NO_GALLERY, AUTO_SEND_NO_ALBUM, AUTO_SEND_NO_IMAGE, CHAT_STATUS_RESET,
+    AUTO_SEND_RECIPIENT_UNVERIFIED, AUTO_SEND_UNAVAILABLE, AUTO_SEND_TIMEOUT, AUTO_SEND_NO_GALLERY, AUTO_SEND_NO_ALBUM, AUTO_SEND_NO_IMAGE, AUTO_SEND_NOT_PHOTO, CHAT_STATUS_RESET,
 }
 
 data class ControllerState(

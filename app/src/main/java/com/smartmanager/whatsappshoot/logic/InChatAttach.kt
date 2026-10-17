@@ -23,6 +23,8 @@ data class AttachScreenView(
     val albumsSwitcher: Boolean = false,
     /** A picture tile of the gallery grid is available to tap (camera tile excluded). */
     val thumbnail: Boolean = false,
+    /** The tile that would be tapped looks like a video (duration label or "video" description). */
+    val thumbIsVideo: Boolean = false,
     val sendButton: Boolean = false,
     /** The open dropdown list can be scrolled further. */
     val canScroll: Boolean = false,
@@ -132,6 +134,7 @@ class AttachFlowEngine(
             if (!v.pickerOpen) return if (now - phaseSince > PICKER_PATIENCE_MS) finish(ShareOutcome.ABORT_NO_IMAGE) else AttachAction.Wait
             if (albumVerifiedAt < 0) { albumVerifiedAt = now; phaseSince = now }
             if (now - albumVerifiedAt < ALBUM_SETTLE_MS) return AttachAction.Wait
+            if (v.thumbnail && v.thumbIsVideo) return finish(ShareOutcome.ABORT_NOT_PHOTO)
             if (v.thumbnail) { go(Phase.AWAIT_SEND, now); return click(AttachAction.ClickThumbnail, now) }
             return if (now - phaseSince > PICKER_PATIENCE_MS) finish(ShareOutcome.ABORT_NO_IMAGE) else AttachAction.Wait
         }
@@ -154,6 +157,7 @@ class AttachFlowEngine(
         // 2. Album verified: let the grid reload, then take the newest picture.
         if (albumVerifiedAt < 0) { albumVerifiedAt = now; phaseSince = now }
         if (now - albumVerifiedAt < ALBUM_SETTLE_MS) return AttachAction.Wait
+        if (v.thumbnail && v.thumbIsVideo) return finish(ShareOutcome.ABORT_NOT_PHOTO)
         if (v.thumbnail && v.pickerOpen) {
             go(Phase.AWAIT_SEND, now)
             return click(AttachAction.ClickThumbnail, now)

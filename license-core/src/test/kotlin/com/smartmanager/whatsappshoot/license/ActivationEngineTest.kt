@@ -10,7 +10,7 @@ class ActivationEngineTest {
     private class Phone(vendor: TestVendor, appId: String) {
         val keys = FakeInstallKeys()
         val store = FakeStore()
-        val engine = ActivationEngine(vendor.verifier, keys, store, appId)
+        val engine = ActivationEngine(vendor.verifier, keys, store, appId, pause = {})
     }
 
     private fun phone() = Phone(vendor, appId)
@@ -140,5 +140,26 @@ class ActivationEngineTest {
     @Test fun clearActivation() {
         val p = phone(); p.engine.activate(vendor.token()); p.engine.clearActivation()
         assertEquals(ActivationStatus.NotActivated, p.engine.status())
+    }
+
+    @Test fun keystoreBrieflyBusy_doesNotDropTheLicense() {
+        val p = phone(); p.engine.activate(vendor.token())
+        p.keys.signFailures = 2                                // busy for two attempts, then fine
+        assertTrue(p.engine.status() is ActivationStatus.Active)
+    }
+
+    @Test fun keystoreCannotSignAtAll_butOwnsTheRecordedKey_staysActive() {
+        val p = phone(); p.engine.activate(vendor.token())
+        p.keys.signFailures = Int.MAX_VALUE
+        assertTrue(p.engine.status() is ActivationStatus.Active)
+        assertEquals("key present, signing unavailable", p.engine.lastDetail)
+    }
+
+    @Test fun stillRejectsACopiedRecord_evenIfSigningIsUnavailable() {
+        val original = phone(); original.engine.activate(vendor.token())
+        val clone = phone()
+        for (s in 0 until ActivationStore.SLOTS) clone.store.write(s, original.store.read(s)!!)
+        clone.keys.ensureKey(); clone.keys.signFailures = Int.MAX_VALUE
+        assertEquals(ActivationStatus.InstallKeyMissing, clone.engine.status())
     }
 }

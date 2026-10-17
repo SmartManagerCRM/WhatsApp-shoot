@@ -66,7 +66,12 @@ class ActivationEngine(
     private val appId: String,
     private val nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
     private val random: SecureRandom = SecureRandom(),
+    private val pause: (Long) -> Unit = { Thread.sleep(it) },
 ) {
+    /** Short, content-free reason of the last status() result (for diagnostics only). */
+    @Volatile var lastDetail: String = ""
+        private set
+
     /** Creates this installation's identity (if needed) and returns the code to send to the seller. */
     fun requestCode(): String? = try {
         LicenseFormat.encodeRequest(keys.ensureKey())
@@ -99,6 +104,7 @@ class ActivationEngine(
     }
 
     fun status(): ActivationStatus {
+        lastDetail = ""
         var sawRecord = false
         var firstFailure: ActivationStatus? = null
         for (slot in 0 until ActivationStore.SLOTS) {
@@ -152,12 +158,21 @@ class ActivationEngine(
             return ActivationStatus.RecordCorrupt
         }
         // 3. This installation must own that key right now (detects data copied to another phone, reinstall).
-        val current = keys.publicKeyX509() ?: return ActivationStatus.InstallKeyMissing
-        if (!current.contentEquals(recordPub)) return ActivationStatus.InstallKeyMissing
+        val current = keys.publicKeyX509() ?: run { lastDetail = "installation key not found"; return ActivationStatus.InstallKeyMissing }
+        if (!current.contentEquals(recordPub)) { lastDetail = "installation key differs from the recorded one"; return ActivationStatus.InstallKeyMissing }
         val nonce = ByteArray(32).also { random.nextBytes(it) }
         val challenge = LicenseFormat.CHALLENGE_DOMAIN.toByteArray(Charsets.UTF_8) + nonce
-        val proof = keys.sign(challenge) ?: return ActivationStatus.InstallKeyMissing
-        if (!verifySig(recordKey, challenge, proof)) return ActivationStatus.InstallKeyMissing
+        // The Keystore can be briefly unavailable (device just booted, system busy): retry before drawing any conclusion.
+        var proof = keys.sign(challenge)
+        var tries = 0
+        while (proof == null && tries < SIGN_RETRIES) { pause(SIGN_RETRY_PAUSE_MS); proof = keys.sign(challenge); tries++ }
+        if (proof == null) {
+            // The Keystore holds an entry with exactly the recorded public key, so this installation owns it (it cannot exist on another
+            // phone). Not being able to sign right now must not throw a paying customer's license away.
+            lastDetail = "key present, signing unavailable"
+            return ActivationStatus.Active(license)
+        }
+        if (!verifySig(recordKey, challenge, proof)) { lastDetail = "possession proof failed"; return ActivationStatus.InstallKeyMissing }
         return ActivationStatus.Active(license)
     }
 
@@ -169,5 +184,10 @@ class ActivationEngine(
         }
     } catch (e: Exception) {
         false
+    }
+
+    companion object {
+        const val SIGN_RETRIES = 3
+        const val SIGN_RETRY_PAUSE_MS = 300L
     }
 }

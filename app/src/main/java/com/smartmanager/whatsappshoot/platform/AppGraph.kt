@@ -88,6 +88,9 @@ class AppGraph private constructor(app: Application) {
 
     fun mediaAccess(): MediaAccess = latestProvider.access
 
+    // Declared before init{}: init calls refreshLicense(), and property initialisers run in order.
+    private val licenseRefreshQueued = java.util.concurrent.atomic.AtomicBoolean(false)
+
     private val _ui = MutableStateFlow(controller.view)
     val ui: StateFlow<ControllerState> = _ui
 
@@ -104,8 +107,6 @@ class AppGraph private constructor(app: Application) {
         refreshLicense()
         bg.execute { if (settings.current.autoCleanup) repository.cleanupOlderThan(settings.current.retentionMs) }
     }
-
-    private val licenseRefreshQueued = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /** Start-up and onResume both ask for a refresh (Keystore + signature work): a request that is already waiting covers the new one. */
     fun refreshLicense() {

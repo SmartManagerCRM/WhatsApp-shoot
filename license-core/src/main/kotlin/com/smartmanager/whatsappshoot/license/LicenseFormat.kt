@@ -20,9 +20,14 @@ object LicenseFormat {
     const val TOKEN_PREFIX = "WSS1"
     const val REQUEST_PREFIX = "WSR1"
 
+    /** Signed administrator command (suspend / cancel): WSC1.<payload>.<signature> */
+    const val CONTROL_PREFIX = "WSC1"
+    const val ACTION_REVOKE = "revoke"
+
     const val POLICY_DEVICE_BOUND = "device-bound"
     const val POLICY_FIRST_USE = "first-use"
     const val ENTITLEMENT_LIFETIME = "lifetime"
+    const val ENTITLEMENT_TERM = "term"
 
     const val SIGNATURE_ALGORITHM = "SHA256withECDSA"
     const val KEY_ALGORITHM = "EC"
@@ -31,6 +36,7 @@ object LicenseFormat {
     const val LICENSE_DOMAIN = "WSS-LICENSE-v1\n"
     const val ACTIVATION_DOMAIN = "WSS-ACTIVATION-v1\n"
     const val CHALLENGE_DOMAIN = "WSS-CHALLENGE-v1\n"
+    const val CONTROL_DOMAIN = "WSS-CONTROL-v1\n"
 
     private val b64Enc = Base64.getUrlEncoder().withoutPadding()
     private val b64Dec = Base64.getUrlDecoder()
@@ -82,11 +88,18 @@ object LicenseFormat {
     fun encodeToken(payload: ByteArray, signatureDer: ByteArray): String =
         "$TOKEN_PREFIX.${b64(payload)}.${b64(signatureDer)}"
 
+    fun controlSigningInput(payload: ByteArray): ByteArray = CONTROL_DOMAIN.toByteArray(Charsets.UTF_8) + payload
+
+    fun encodeControl(payload: ByteArray, signatureDer: ByteArray): String =
+        "$CONTROL_PREFIX.${b64(payload)}.${b64(signatureDer)}"
+
+    fun decodeControl(token: String): Pair<ByteArray, ByteArray>? = decodeToken(token, CONTROL_PREFIX)
+
     /** Splits a token into (payload, signature) or null if the structure is wrong. */
-    fun decodeToken(token: String): Pair<ByteArray, ByteArray>? {
+    fun decodeToken(token: String, prefix: String = TOKEN_PREFIX): Pair<ByteArray, ByteArray>? {
         val cleaned = token.filter { !it.isWhitespace() }
         val parts = cleaned.split('.')
-        if (parts.size != 3 || parts[0] != TOKEN_PREFIX) return null
+        if (parts.size != 3 || parts[0] != prefix) return null
         val payload = unb64(parts[1]) ?: return null
         val sig = unb64(parts[2]) ?: return null
         if (payload.isEmpty() || payload.size > MAX_PAYLOAD_BYTES || sig.isEmpty() || sig.size > 80) return null

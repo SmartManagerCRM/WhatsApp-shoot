@@ -28,8 +28,8 @@ android {
         applicationId = "com.smartmanager.whatsappshoot"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.0.8"
+        versionCode = 10
+        versionName = "1.1.0"
 
         buildConfigField("String", "LICENSE_PUBLIC_KEY", "\"$licensePublicKey\"")
     }
@@ -83,6 +83,7 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.10.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.foundation:foundation")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     // coil/glide intentionally NOT used: the preview decodes the local file with BitmapFactory.

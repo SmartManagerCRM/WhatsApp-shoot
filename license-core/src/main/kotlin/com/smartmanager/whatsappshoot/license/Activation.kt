@@ -28,6 +28,14 @@ interface ActivationStore {
     fun write(slot: Int, value: String)
     fun clear()
 
+    /** Administrator revocations received so far, one `licenseId,highestRevokedRevision` per line. */
+    fun readControls(): String? = null
+    fun writeControls(value: String) {}
+
+    /** Highest wall-clock time (epoch seconds) ever seen: a phone clock set back cannot revive an expired license. */
+    fun readTimeMark(): Long = 0L
+    fun writeTimeMark(value: Long) {}
+
     companion object {
         const val SLOTS = 2
     }
@@ -36,6 +44,12 @@ interface ActivationStore {
 sealed class ActivationStatus {
     object NotActivated : ActivationStatus()
     data class Active(val license: LicensePayload) : ActivationStatus()
+
+    /** A term license whose end date has passed (renew with a new code from the seller). */
+    data class Expired(val license: LicensePayload) : ActivationStatus()
+
+    /** The seller withdrew this license (suspended / cancelled). */
+    data class Revoked(val license: LicensePayload) : ActivationStatus()
 
     /** Stored activation data is unreadable or fails its integrity check. */
     object RecordCorrupt : ActivationStatus()
@@ -50,6 +64,9 @@ sealed class ActivationResult {
     data class Failure(val error: LicenseError) : ActivationResult()
     object KeystoreUnavailable : ActivationResult()
     object StorageFailed : ActivationResult()
+
+    /** An administrator command was accepted. [affectsInstalled] is true when it stops the license installed on this phone. */
+    data class ControlApplied(val licenseId: String, val revokedUpTo: Int, val affectsInstalled: Boolean) : ActivationResult()
 }
 
 /**
@@ -81,6 +98,7 @@ class ActivationEngine(
 
     fun activate(token: String): ActivationResult {
         val token1 = token.filter { !it.isWhitespace() }
+        if (token1.startsWith(LicenseFormat.CONTROL_PREFIX + ".")) return applyControl(token1)
         // Verify before creating any key, so garbage input has no side effects. For a device-bound license
         // the key must already exist (created by requestCode()).
         val existing = keys.publicKeyX509()
@@ -89,6 +107,12 @@ class ActivationEngine(
             is VerifyResult.Valid -> pre.license
             is VerifyResult.Invalid -> return ActivationResult.Failure(pre.error)
         }
+        // Withdrawn / superseded / already ended licenses are refused before anything is stored.
+        val revokedUpTo = revoked()[license.licenseId]
+        if (revokedUpTo != null && license.revision <= revokedUpTo) return ActivationResult.Failure(LicenseError.REVOKED)
+        val expiry = license.expiresAtEpochSeconds
+        if (expiry != null && effectiveNow() > expiry) return ActivationResult.Failure(LicenseError.EXPIRED)
+        installedLicense()?.let { cur -> if (cur.licenseId == license.licenseId && license.revision < cur.revision) return ActivationResult.Failure(LicenseError.SUPERSEDED) }
         val pub = try {
             keys.ensureKey()
         } catch (e: InstallKeyException) {
@@ -103,7 +127,60 @@ class ActivationEngine(
         }
     }
 
+    /** Evaluates the installed license, then applies administrator revocations and the end date of term licenses. */
     fun status(): ActivationStatus {
+        val base = baseStatus()
+        if (base !is ActivationStatus.Active) return base
+        val lic = base.license
+        revoked()[lic.licenseId]?.let { upTo -> if (lic.revision <= upTo) { lastDetail = "revoked by the seller"; return ActivationStatus.Revoked(lic) } }
+        val exp = lic.expiresAtEpochSeconds
+        if (exp != null && effectiveNow() > exp) { lastDetail = "term ended"; return ActivationStatus.Expired(lic) }
+        return base
+    }
+
+    /** The license currently installed (whatever its state), or null. */
+    private fun installedLicense(): LicensePayload? = when (val s = baseStatus()) {
+        is ActivationStatus.Active -> s.license
+        else -> null
+    }
+
+    private fun applyControl(token: String): ActivationResult {
+        val c = when (val r = verifier.verifyControl(token)) {
+            is ControlVerifyResult.Valid -> r.control
+            is ControlVerifyResult.Invalid -> return ActivationResult.Failure(r.error)
+        }
+        val map = revoked().toMutableMap()
+        val old = map[c.licenseId] ?: -1
+        if (c.revision > old) map[c.licenseId] = c.revision
+        return try {
+            store.writeControls(map.entries.joinToString("\n") { "${it.key},${it.value}" })
+            val installed = installedLicense()
+            ActivationResult.ControlApplied(c.licenseId, c.revision, installed != null && installed.licenseId == c.licenseId && installed.revision <= c.revision)
+        } catch (e: Exception) {
+            ActivationResult.StorageFailed
+        }
+    }
+
+    private fun revoked(): Map<String, Int> {
+        val out = HashMap<String, Int>()
+        for (line in store.readControls().orEmpty().split('\n')) {
+            val i = line.indexOf(',')
+            if (i <= 0) continue
+            val rev = line.substring(i + 1).toIntOrNull() ?: continue
+            out[line.substring(0, i)] = rev
+        }
+        return out
+    }
+
+    /** Wall-clock time that cannot go backwards: setting the phone clock back does not give an expired license new life. */
+    private fun effectiveNow(): Long {
+        val real = nowEpochSeconds()
+        val mark = store.readTimeMark()
+        if (real > mark) { if (real - mark >= 60) try { store.writeTimeMark(real) } catch (e: Exception) { }; return real }
+        return mark
+    }
+
+    private fun baseStatus(): ActivationStatus {
         lastDetail = ""
         var sawRecord = false
         var firstFailure: ActivationStatus? = null

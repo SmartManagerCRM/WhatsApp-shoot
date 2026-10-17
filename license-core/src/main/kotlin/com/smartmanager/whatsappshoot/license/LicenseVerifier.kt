@@ -20,6 +20,15 @@ enum class LicenseError {
 
     /** The verification key compiled into this build is unusable (build not provisioned). */
     PUBLIC_KEY_INVALID,
+
+    /** The license (or this revision of it) was withdrawn by the seller. */
+    REVOKED,
+
+    /** A newer revision of this license is already installed. */
+    SUPERSEDED,
+
+    /** A term license whose end date has passed. */
+    EXPIRED,
 }
 
 sealed class VerifyResult {
@@ -58,8 +67,10 @@ class LicenseVerifier(publicKeyX509: ByteArray) {
         val p = LicensePayload.parse(payloadBytes) ?: return VerifyResult.Invalid(LicenseError.MALFORMED)
         if (p.version != LicenseFormat.FORMAT_VERSION) return VerifyResult.Invalid(LicenseError.UNSUPPORTED_VERSION)
         if (p.productId != LicenseFormat.PRODUCT_ID) return VerifyResult.Invalid(LicenseError.WRONG_PRODUCT)
-        if (p.entitlement != LicenseFormat.ENTITLEMENT_LIFETIME) {
-            return VerifyResult.Invalid(LicenseError.UNSUPPORTED_ENTITLEMENT)
+        when (p.entitlement) {
+            LicenseFormat.ENTITLEMENT_LIFETIME -> if (p.expiresAtEpochSeconds != null) return VerifyResult.Invalid(LicenseError.MALFORMED)
+            LicenseFormat.ENTITLEMENT_TERM -> if (p.expiresAtEpochSeconds == null) return VerifyResult.Invalid(LicenseError.MALFORMED)
+            else -> return VerifyResult.Invalid(LicenseError.UNSUPPORTED_ENTITLEMENT)
         }
         when (p.policy) {
             LicenseFormat.POLICY_DEVICE_BOUND -> {
@@ -73,6 +84,23 @@ class LicenseVerifier(publicKeyX509: ByteArray) {
             else -> return VerifyResult.Invalid(LicenseError.UNSUPPORTED_POLICY)
         }
         return VerifyResult.Valid(p)
+    }
+
+    /** Verifies a signed administrator command (see [ControlPayload]). */
+    fun verifyControl(token: String): ControlVerifyResult {
+        val key = publicKey ?: return ControlVerifyResult.Invalid(LicenseError.PUBLIC_KEY_INVALID)
+        val (payloadBytes, sig) = LicenseFormat.decodeControl(token) ?: return ControlVerifyResult.Invalid(LicenseError.MALFORMED)
+        val ok = try {
+            Signature.getInstance(LicenseFormat.SIGNATURE_ALGORITHM).run {
+                initVerify(key); update(LicenseFormat.controlSigningInput(payloadBytes)); verify(sig)
+            }
+        } catch (e: Exception) { false }
+        if (!ok) return ControlVerifyResult.Invalid(LicenseError.BAD_SIGNATURE)
+        val c = ControlPayload.parse(payloadBytes) ?: return ControlVerifyResult.Invalid(LicenseError.MALFORMED)
+        if (c.version != LicenseFormat.FORMAT_VERSION) return ControlVerifyResult.Invalid(LicenseError.UNSUPPORTED_VERSION)
+        if (c.productId != LicenseFormat.PRODUCT_ID) return ControlVerifyResult.Invalid(LicenseError.WRONG_PRODUCT)
+        if (c.action != LicenseFormat.ACTION_REVOKE) return ControlVerifyResult.Invalid(LicenseError.MALFORMED)
+        return ControlVerifyResult.Valid(c)
     }
 
     private fun constantTimeEquals(a: String, b: String): Boolean =

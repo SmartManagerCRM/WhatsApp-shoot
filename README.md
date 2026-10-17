@@ -8,7 +8,7 @@ no INTERNET permission, no backend, no accounts, no analytics.
 
 | Part | State |
 |---|---|
-| Licensing core (signed licences, installation-bound activation) + owner CLI | Implemented; **39 JVM tests pass** (231 in total); CLI exercised end to end |
+| Licensing core (signed licences, installation-bound activation) + owner CLI | Implemented; **39 JVM tests pass** (256 in total); CLI exercised end to end |
 | Automation logic (state machine, classifier, destination checks, duplicate guard, storage, controller) | Implemented; **168 JVM tests pass** against fakes / synthetic screens |
 | Android platform glue (accessibility service, capture engines, Keystore, notifications, share launcher) | Written; **compiles against Android 34 API**; never executed on Android |
 | Compose UI, manifest, resources, Gradle build | Written; **never compiled** (Google Maven unreachable where this was built) |
@@ -37,5 +37,5 @@ Build the owner tool: `scripts/build-license-tool.sh <kotlinc-dir>`, then see `d
 Build the app (needs Android SDK 35 and network access to Google Maven): see `docs/RELEASE.md`.
 
 ## Documents
-`ARCHITECTURE`, `LICENSING`, `LICENSE_FORMAT`, `KEY_MANAGEMENT`, `LICENSE_TOOL`, `RELEASE`, `INSTALLATION`, `USER_MANUAL`, `WHATSAPP_COMPATIBILITY`,
+`ARCHITECTURE`, `LICENSING`, `LICENSE_FORMAT`, `KEY_MANAGEMENT`, `LICENSE_TOOL`, `LICENSE_ADMIN`, `RELEASE`, `INSTALLATION`, `USER_MANUAL`, `WHATSAPP_COMPATIBILITY`,
 `PERMISSIONS_AND_PRIVACY`, `TESTING_REPORT`, `DEVICE_TEST_PLAN`, `KNOWN_LIMITATIONS`, `RELEASE_CHECKLIST` - all under `docs/`.

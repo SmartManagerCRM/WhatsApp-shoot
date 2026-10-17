@@ -47,6 +47,13 @@
     <string name="license_not_activated">Not activated</string>
     <string name="license_active">Activated: lifetime license</string>
     <string name="license_no_key">This build was not provisioned with a license key and cannot activate licenses.</string>
+    <string name="license_ok_activated">License activated. Thank you.</string>
+    <string name="license_ok_stopped">The code was applied: this license is now stopped. Contact the seller.</string>
+    <string name="license_ok_control_stored">The code was saved. It does not affect the license installed on this phone.</string>
+    <string name="license_not_activated_help">Enter the license you received from the seller. If you do not have one yet, create an activation request below and send it to the seller.</string>
+    <string name="license_err_revoked">This license (or this version of it) was stopped by the seller. Contact them for a new code.</string>
+    <string name="license_err_superseded">A newer version of this license is already installed on this phone.</string>
+    <string name="license_err_expired">This license has already ended. Ask the seller for a renewal code.</string>
     <string name="license_err_malformed">That does not look like a valid license. Check that you copied all of it.</string>
     <string name="license_err_signature">The license signature is not valid. It was not issued for this app.</string>
     <string name="license_err_product">This license is for a different product.</string>

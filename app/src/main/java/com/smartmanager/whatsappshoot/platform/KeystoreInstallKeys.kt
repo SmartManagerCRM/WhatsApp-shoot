@@ -92,4 +92,16 @@ class PrefsActivationStore(context: Context) : ActivationStore {
     override fun clear() {
         prefs.edit().clear().commit()
     }
+
+    override fun readControls(): String? = prefs.getString("controls", null)
+
+    override fun writeControls(value: String) {
+        if (!prefs.edit().putString("controls", value).commit()) throw java.io.IOException("control write failed")
+    }
+
+    override fun readTimeMark(): Long = prefs.getLong("timeMark", 0L)
+
+    override fun writeTimeMark(value: Long) {
+        prefs.edit().putLong("timeMark", value).apply()
+    }
 }

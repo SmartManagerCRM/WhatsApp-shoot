@@ -29,7 +29,13 @@ class FakeStore : ActivationStore {
     var failWrites = false
     override fun read(slot: Int) = slots[slot]
     override fun write(slot: Int, value: String) { if (failWrites) throw java.io.IOException("disk full"); slots[slot] = value }
-    override fun clear() { slots.fill(null) }
+    override fun clear() { slots.fill(null); controls = null; mark = 0L }
+    var controls: String? = null
+    var mark = 0L
+    override fun readControls() = controls
+    override fun writeControls(value: String) { controls = value }
+    override fun readTimeMark() = mark
+    override fun writeTimeMark(value: Long) { mark = value }
 }
 
 fun newEcKeyPair(): KeyPair =
@@ -48,7 +54,15 @@ class TestVendor(val pair: KeyPair = newEcKeyPair()) {
         entitlement: String = LicenseFormat.ENTITLEMENT_LIFETIME,
         version: Int = LicenseFormat.FORMAT_VERSION,
         ref: String? = "order-1",
-    ) = LicensePayload(version, product, id, policy, entitlement, 1_700_000_000L, ref, bind)
+        expires: Long? = null,
+        revision: Int = 0,
+    ) = LicensePayload(version, product, id, policy, entitlement, 1_700_000_000L, ref, bind, expires, revision)
+
+    fun control(licenseId: String, revision: Int, action: String = LicenseFormat.ACTION_REVOKE, key: KeyPair = pair): String {
+        val bytes = ControlPayload(LicenseFormat.FORMAT_VERSION, LicenseFormat.PRODUCT_ID, action, licenseId, revision, 1_700_000_100L).serialize()
+        val sig = Signature.getInstance(LicenseFormat.SIGNATURE_ALGORITHM).run { initSign(key.private); update(LicenseFormat.controlSigningInput(bytes)); sign() }
+        return LicenseFormat.encodeControl(bytes, sig)
+    }
 
     fun sign(bytes: ByteArray, key: KeyPair = pair): String {
         val sig = Signature.getInstance(LicenseFormat.SIGNATURE_ALGORITHM).run {

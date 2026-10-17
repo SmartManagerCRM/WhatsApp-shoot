@@ -201,6 +201,9 @@ object StatusStrings {
         com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_RECIPIENT_UNVERIFIED -> R.string.status_auto_unverified
         com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_UNAVAILABLE -> R.string.status_auto_unavailable
         com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_TIMEOUT -> R.string.status_auto_timeout
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_NO_GALLERY -> R.string.status_auto_no_gallery
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_NO_ALBUM -> R.string.status_auto_no_album
+        com.smartmanager.whatsappshoot.logic.StatusMessage.AUTO_SEND_NO_IMAGE -> R.string.status_auto_no_image
         com.smartmanager.whatsappshoot.logic.StatusMessage.CHAT_STATUS_RESET -> R.string.status_chat_reset
     }
 }

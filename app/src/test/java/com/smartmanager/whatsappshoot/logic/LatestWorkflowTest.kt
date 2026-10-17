@@ -261,49 +261,82 @@ class LatestWorkflowTest {
     }
     private fun LatestRig.list(vararg t: String) = controller.shareStep(ShareScreenView(ShareStage.SHARE_LIST, rowTitles = t.toList()))
     private fun LatestRig.preview(recipient: String?) = controller.shareStep(ShareScreenView(ShareStage.SHARE_PREVIEW, previewRecipient = recipient, sendButtonAvailable = true))
-    private fun LatestRig.chat(title: String, outgoing: Int?) = controller.shareStep(ShareScreenView(ShareStage.CONVERSATION, conversationHeader = title, outgoingMediaCount = outgoing))
+    private fun LatestRig.chatView(outgoing: Int?, attach: Boolean = true) = controller.attachStep(AttachScreenView(chatVisible = true, attachButton = attach, outgoingMediaCount = outgoing))
+    private fun LatestRig.menu() = controller.attachStep(AttachScreenView(chatVisible = true, galleryEntry = true))
+    private fun LatestRig.picker(album: Boolean = false, thumb: Boolean = false) = controller.attachStep(AttachScreenView(chatVisible = false, albumLabel = album, thumbnail = thumb))
+    private fun LatestRig.sendScreen() = controller.attachStep(AttachScreenView(chatVisible = false, sendButton = true))
+    private fun LatestRig.tick() = clock.advance(AttachFlowEngine.CLICK_GAP_MS + 100)
+
+    /** Walks the whole in-chat flow up to (and including) the Send click. */
+    private fun LatestRig.driveToSend() {
+        assertEquals(AttachAction.ClickAttach, chatView(4)); tick()
+        assertEquals(AttachAction.ClickGallery, menu()); tick()
+        assertEquals(AttachAction.ClickAlbum, picker(album = true)); tick()
+        assertEquals(AttachAction.ClickThumbnail, picker(thumb = true)); tick()
+        assertEquals(AttachAction.ClickSend, sendScreen())
+    }
+
+    @Test fun fullAutoSend_usesTheOpenChat_notTheShareList() {
+        val r = autoRig(); r.open("Alice", outgoing = 4)
+        assertEquals(PREPARING_ATTACHMENT, r.state); assertTrue(r.controller.shareFlowActive); assertTrue(r.controller.attachFlowActive)
+        assertEquals("no share sheet is opened", 0, r.launcher.calls)
+    }
 
     @Test fun fullAutoSend_confirmedWhenEvidenceExists() {
         val r = autoRig(); r.open("Alice", outgoing = 4)
-        assertEquals(PREPARING_ATTACHMENT, r.state); assertTrue(r.controller.shareFlowActive)
-        assertEquals(ShareAction.ClickRow(1), r.list("Bob", "Alice"))
-        assertEquals(ShareAction.ClickSend, r.preview("Alice"))
-        r.chat("Alice", 5)
+        r.driveToSend(); r.tick()
+        r.chatView(5)
         assertEquals(StatusMessage.SEND_CONFIRMED, r.message); assertEquals(ATTACHMENT_READY, r.state)
         assertTrue(r.ledger.hasHandled(r.chatKey("Alice"), r.provider.selector.selectLatest(listOf("Screenshots")).let { (it as SelectionResult.Found).image.key }))
     }
 
     @Test fun fullAutoSend_withoutEvidenceNeverClaimsSuccess() {
         val r = autoRig(); r.open("Alice", outgoing = 4)
-        r.list("Alice"); r.preview("Alice"); r.chat("Alice", 4)
+        r.driveToSend()
+        r.chatView(4); r.clock.advance(AttachFlowEngine.RESULT_GRACE_MS + 100); r.chatView(4)
         assertEquals(StatusMessage.SEND_UNCONFIRMED, r.message)
     }
 
-    @Test fun fullAutoSend_recipientMismatchStopsBeforeSend() {
+    @Test fun fullAutoSend_noScreenshotsAlbum_abortsWithoutSending() {
         val r = autoRig(); r.open("Alice", outgoing = 0)
-        r.list("Alice")
-        assertEquals(ShareAction.Done(ShareOutcome.ABORT_RECIPIENT_MISMATCH), r.preview("Bob"))
-        assertEquals(MANUAL_ACTION_REQUIRED, r.state); assertEquals(StatusMessage.AUTO_SEND_RECIPIENT_MISMATCH, r.message)
+        r.chatView(0); r.tick(); r.menu(); r.tick()
+        r.picker(thumb = true) // thumbnails but no Screenshots album: must NOT pick an arbitrary newest picture
+        r.clock.advance(AttachFlowEngine.PICKER_PATIENCE_MS + 100)
+        assertEquals(AttachAction.Done(ShareOutcome.ABORT_NO_ALBUM), r.picker(thumb = true))
+        assertEquals(MANUAL_ACTION_REQUIRED, r.state); assertEquals(StatusMessage.AUTO_SEND_NO_ALBUM, r.message)
         assertEquals("nothing was handed off, so nothing is recorded", 0, r.ledger.size())
     }
 
-    @Test fun fullAutoSend_ambiguousListAborts() {
+    @Test fun fullAutoSend_galleryNeverAppears_abortsToManual() {
         val r = autoRig(); r.open("Alice", outgoing = 0)
-        r.list("Alice", "Alice")
-        assertEquals(StatusMessage.AUTO_SEND_AMBIGUOUS, r.message); assertEquals(MANUAL_ACTION_REQUIRED, r.state)
+        assertEquals(AttachAction.ClickAttach, r.chatView(0))
+        r.clock.advance(AttachFlowEngine.MENU_PATIENCE_MS + 100)
+        assertEquals("one retry of the attach button", AttachAction.ClickAttach, r.chatView(0))
+        r.clock.advance(AttachFlowEngine.MENU_PATIENCE_MS + 100)
+        assertEquals(AttachAction.Done(ShareOutcome.ABORT_NO_GALLERY), r.chatView(0))
+        assertEquals(MANUAL_ACTION_REQUIRED, r.state); assertEquals(StatusMessage.AUTO_SEND_NO_GALLERY, r.message)
     }
 
     @Test fun fullAutoSend_timeoutAbortsToManual() {
         val r = autoRig(); r.open("Alice", outgoing = 0)
-        r.scheduler.advance(AutomationController.SEND_FLOW_TIMEOUT_MS + 10)
+        r.scheduler.advance(AutomationController.ATTACH_FLOW_TIMEOUT_MS + 10)
         assertEquals(MANUAL_ACTION_REQUIRED, r.state); assertEquals(StatusMessage.AUTO_SEND_TIMEOUT, r.message)
+    }
+
+    @Test fun fullAutoSend_flowSurvivesPassingThroughPickerScreens() {
+        val r = autoRig(); r.open("Alice", outgoing = 0)
+        // WhatsApp's gallery is classified as an attachment picker: that must not cancel the flow or its timeout.
+        r.controller.onScreen(ScreenSnapshot("com.whatsapp", windowClassName = "com.whatsapp.gallerypicker.GalleryPicker"))
+        assertTrue(r.controller.attachFlowActive)
+        r.scheduler.advance(AutomationController.ATTACH_FLOW_TIMEOUT_MS + 10)
+        assertEquals(MANUAL_ACTION_REQUIRED, r.state)
     }
 
     @Test fun emergencyStop_haltsFlowImmediately_noFurtherClicks() {
         val r = autoRig(); r.open("Alice", outgoing = 0)
-        r.list("Alice")
+        r.chatView(0)
         r.controller.stop()
-        assertNull(r.preview("Alice")); assertFalse(r.controller.shareFlowActive); assertEquals(INACTIVE, r.state)
+        assertNull(r.chatView(0)); assertFalse(r.controller.shareFlowActive); assertEquals(INACTIVE, r.state)
     }
 
     @Test fun fullAutoSendIsOffUnlessOptedIn_evenIfDirectSelectIsOn() {

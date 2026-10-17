@@ -41,6 +41,7 @@ class AutomationController(
     private var currentOutgoing: Int? = null
     private var baselineOutgoing: Int? = null
     private var shareEngine: ShareFlowEngine? = null
+    private var attachEngine: AttachFlowEngine? = null
     private var shareTimeout: Cancellable? = null
     private var captureEpoch = 0
     private var captureWatchdog: Cancellable? = null
@@ -93,8 +94,9 @@ class AutomationController(
 
     fun stop() {
         captureEpoch++; disarmWatchdog()
-        cancelPending()
-        shareEngine = null // emergency stop: nothing further is clicked
+        shareEngine = null; attachEngine = null
+        shareTimeout?.cancel(); shareTimeout = null
+        cancelPending() // emergency stop: nothing further is clicked
         machine.dispatch(AutomationEvent.STOP)
         discardScreenshot()
         currentIdentity = null
@@ -141,6 +143,7 @@ class AutomationController(
     }
 
     private fun onLeftWhatsApp() {
+        if (shareFlowActive) return // a flow in progress may pass through system pickers; its own timeout ends it
         cancelPending()
         guard.conversationLeft()
         currentIdentity = null
@@ -401,6 +404,13 @@ class AutomationController(
 
     private fun prepareAttachment(shot: StoredScreenshot, direct: Boolean, allowSend: Boolean = false) {
         set(StatusMessage.PREPARING_ATTACHMENT)
+        if (allowSend) {
+            // Fully automatic: stay in the open chat and use WhatsApp's own attach menu (no recipient list, so no name matching).
+            attachEngine = AttachFlowEngine(baselineOutgoing, clock)
+            shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
+            ActivityLog.add("in-chat attach flow started")
+            return
+        }
         when (val r = launcher.launchShare(shot, shotIdentity, hasher, direct)) {
             is LaunchResult.Launched -> if (r.directSelectPending) {
                 shareEngine = ShareFlowEngine(shotIdentity, hasher, allowSend, baselineOutgoing, clock)
@@ -432,7 +442,34 @@ class AutomationController(
     // ---- share-flow driving (called by the accessibility layer) ----
 
     /** True while the accessibility layer should keep reporting WhatsApp's share screens. */
-    val shareFlowActive: Boolean get() = shareEngine != null && machine.state == AutomationState.PREPARING_ATTACHMENT
+    val shareFlowActive: Boolean get() = (shareEngine != null || attachEngine != null) && machine.state == AutomationState.PREPARING_ATTACHMENT
+
+    /** True when the running flow works inside the open chat (attach -> Gallery -> album -> Send). */
+    val attachFlowActive: Boolean get() = attachEngine != null && machine.state == AutomationState.PREPARING_ATTACHMENT
+
+    /** Folder names shown as albums in WhatsApp's gallery. */
+    fun albumNames(): List<String> = settings().screenshotFolders
+
+    fun attachStep(view: AttachScreenView): AttachAction? {
+        val e = attachEngine ?: return null
+        if (machine.state != AutomationState.PREPARING_ATTACHMENT || machine.paused) { attachEngine = null; return null }
+        val a = e.step(view)
+        val trace = "attach: ${e.note} -> ${a::class.simpleName}" + ((a as? AttachAction.Done)?.let { " ${it.outcome}" } ?: "")
+        if (trace != lastShareTrace) { ActivityLog.add(trace); lastShareTrace = trace }
+        if (a is AttachAction.Done) onShareOutcome(a.outcome)
+        return a
+    }
+
+    /** The click the flow asked for could not be performed (control not found/clickable). */
+    fun attachClickFailed(a: AttachAction) {
+        ActivityLog.add("click failed: ${a::class.simpleName}")
+        onShareOutcome(when (a) {
+            AttachAction.ClickSend -> ShareOutcome.ABORT_SEND_UNAVAILABLE
+            AttachAction.ClickAlbum, AttachAction.ClickAlbumsSwitcher -> ShareOutcome.ABORT_NO_ALBUM
+            AttachAction.ClickThumbnail -> ShareOutcome.ABORT_NO_IMAGE
+            else -> ShareOutcome.ABORT_NO_GALLERY
+        })
+    }
 
     /** Feed what WhatsApp shows now; returns the click to perform, if any. Stops acting the moment automation is stopped. */
     fun shareStep(view: ShareScreenView): ShareAction? {
@@ -453,7 +490,7 @@ class AutomationController(
 
     fun onShareOutcome(o: ShareOutcome) {
         if (machine.state != AutomationState.PREPARING_ATTACHMENT) return
-        shareTimeout?.cancel(); shareTimeout = null; shareEngine = null
+        shareTimeout?.cancel(); shareTimeout = null; shareEngine = null; attachEngine = null
         when (o) {
             ShareOutcome.ROW_SELECTED -> { record(LedgerStatus.PREPARED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.ATTACHMENT_READY) }
             ShareOutcome.SENT_CONFIRMED -> { record(LedgerStatus.SENT_CONFIRMED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.SEND_CONFIRMED) }
@@ -465,6 +502,9 @@ class AutomationController(
             ShareOutcome.ABORT_SEND_UNAVAILABLE -> attachmentFailed(StatusMessage.AUTO_SEND_UNAVAILABLE)
             ShareOutcome.ABORT_TIMEOUT -> attachmentFailed(StatusMessage.AUTO_SEND_TIMEOUT)
             ShareOutcome.ABORT_STOPPED -> attachmentFailed(StatusMessage.STOPPED)
+            ShareOutcome.ABORT_NO_GALLERY -> attachmentFailed(StatusMessage.AUTO_SEND_NO_GALLERY)
+            ShareOutcome.ABORT_NO_ALBUM -> attachmentFailed(StatusMessage.AUTO_SEND_NO_ALBUM)
+            ShareOutcome.ABORT_NO_IMAGE -> attachmentFailed(StatusMessage.AUTO_SEND_NO_IMAGE)
         }
     }
 
@@ -490,7 +530,7 @@ class AutomationController(
         shotIdentity = null
         captureIdentity = null
         shotImage = null
-        shareEngine = null
+        shareEngine = null; attachEngine = null
         if (machine.dispatch(AutomationEvent.DISMISS)) set(StatusMessage.WAITING_FOR_WHATSAPP)
     }
 
@@ -511,7 +551,7 @@ class AutomationController(
     private fun cancelPending() {
         pendingAutoCapture?.cancel(); pendingAutoCapture = null
         directSelectTimeout?.cancel(); directSelectTimeout = null
-        shareTimeout?.cancel(); shareTimeout = null
+        if (!shareFlowActive) { shareTimeout?.cancel(); shareTimeout = null } // a running flow keeps its own timeout
     }
 
     private fun set(m: StatusMessage) {
@@ -533,6 +573,7 @@ class AutomationController(
     companion object {
         const val DIRECT_SELECT_TIMEOUT_MS = 15_000L
         const val SEND_FLOW_TIMEOUT_MS = 25_000L
+        const val ATTACH_FLOW_TIMEOUT_MS = 40_000L
         const val CAPTURE_TIMEOUT_MS = 12_000L
     }
 }

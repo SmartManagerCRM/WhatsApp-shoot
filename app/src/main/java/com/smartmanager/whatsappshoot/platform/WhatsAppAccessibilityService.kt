@@ -136,7 +136,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         var titleKey: Long = Long.MAX_VALUE,
     )
 
-    private class ClickInfo(val node: AccessibilityNodeInfo, val desc: String?, val cls: String?, val rect: android.graphics.Rect)
+    private class ClickInfo(val node: AccessibilityNodeInfo, val desc: String?, val cls: String?, val rect: android.graphics.Rect, val id: String? = null)
 
     /** @param retain keep every visited node un-recycled so the caller may click them afterwards (share flow only). */
     private fun scan(root: AccessibilityNodeInfo, retain: Boolean = false): Scan {
@@ -157,7 +157,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             if (retain && n.isVisibleToUser) {
                 if (hasText && cls != null && cls.endsWith("TextView") && r.texts.size < MAX_TEXTS) r.texts += n.text.toString() to n
                 if (n.isScrollable && rect.width().toLong() * rect.height() > r.scrollArea) { r.scrollNode = n; r.scrollArea = rect.width().toLong() * rect.height() }
-                if (n.isClickable && n.isEnabled && r.clicks.size < MAX_CLICKS) r.clicks += ClickInfo(n, n.contentDescription?.toString(), cls, rect)
+                if (n.isClickable && n.isEnabled && r.clicks.size < MAX_CLICKS) r.clicks += ClickInfo(n, n.contentDescription?.toString(), cls, rect, short)
             }
             if (n !== root && cls != null && cls.endsWith("TextView") && hasText && rect.top >= 0 && rect.top < screenH * 0.2) {
                 val key = rect.top * 10_000L + rect.left
@@ -280,6 +280,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         if (root.packageName?.toString() != pkg) return
         val sc = scan(root, retain = true)
+        if (c.attachFlowActive) { driveAttachFlow(c, sc); return }
         val cls = lastWindowClass
         val send = findSendButton(sc)
         val kind = graph.classifier.classify(ScreenSnapshot(pkg, sc.ids, sc.header, cls, hasEditableInput = sc.editable, topTitle = sc.title)).kind
@@ -329,16 +330,71 @@ class WhatsAppAccessibilityService : AccessibilityService() {
      * Finds WhatsApp's Send button without relying on a view id: (1) known ids, (2) an accessibility label that means "send" in common
      * languages, (3) the small clickable button in the bottom-right corner of the screen. Only ever used after the recipient matched.
      */
-    private fun findSendButton(sc: Scan): Pair<AccessibilityNodeInfo, String>? {
+    private fun findSendButton(sc: Scan, strict: Boolean = false): Pair<AccessibilityNodeInfo, String>? {
         sc.sendNode?.let { return it to "id" }
         sc.clicks.firstOrNull { ci -> ci.desc?.lowercase()?.let { d -> SEND_WORDS.any { w -> d.contains(w) } } == true }?.let { return it.node to "label" }
         val w = resources.displayMetrics.widthPixels
         val h = resources.displayMetrics.heightPixels
         val corner = sc.clicks.filter { ci ->
-            ci.rect.centerX() > w * 0.6 && ci.rect.centerY() > h * 0.55 && ci.rect.width() < w * 0.35 &&
-                (ci.cls?.let { it.endsWith("ImageButton") || it.endsWith("ImageView") || it.endsWith("FloatingActionButton") || it.endsWith("View") || it.endsWith("FrameLayout") } == true)
+            if (strict) {
+                // Picture thumbnails also sit in the lower right of a gallery grid: only a small round button may count.
+                ci.rect.centerX() > w * 0.7 && ci.rect.centerY() > h * 0.6 && ci.rect.width() < w * 0.2 &&
+                    (ci.cls?.let { it.endsWith("ImageButton") || it.endsWith("FloatingActionButton") } == true)
+            } else {
+                ci.rect.centerX() > w * 0.6 && ci.rect.centerY() > h * 0.55 && ci.rect.width() < w * 0.35 &&
+                    (ci.cls?.let { it.endsWith("ImageButton") || it.endsWith("ImageView") || it.endsWith("FloatingActionButton") || it.endsWith("View") || it.endsWith("FrameLayout") } == true)
+            }
         }.maxByOrNull { it.rect.centerY() * 2L + it.rect.centerX() }
         return corner?.let { it.node to "corner" }
+    }
+
+    // ---- in-chat attach flow: + -> Gallery -> Screenshots album -> newest picture -> Send ----
+
+    private fun lc(s: String?) = s?.trim()?.lowercase().orEmpty()
+
+    private fun driveAttachFlow(c: com.smartmanager.whatsappshoot.logic.AutomationController, sc: Scan) {
+        val w = resources.displayMetrics.widthPixels
+        val h = resources.displayMetrics.heightPixels
+        val chatVisible = sc.editable && c.expectedTitleMatches(sc.header ?: sc.title)
+
+        val attach = sc.clicks.firstOrNull { it.id in ATTACH_IDS }?.node
+            ?: sc.clicks.firstOrNull { ci -> lc(ci.desc).let { d -> d.isNotEmpty() && ATTACH_WORDS.any { d.contains(it) } } }?.node
+        val gallery = sc.clicks.firstOrNull { it.id in GALLERY_IDS }?.node
+            ?: sc.texts.firstOrNull { t -> lc(t.first).let { it in GALLERY_WORDS } }?.second
+            ?: sc.clicks.firstOrNull { ci -> lc(ci.desc).let { it in GALLERY_WORDS } }?.node
+        val names = c.albumNames().map { lc(it) } + (if (c.albumNames().any { lc(it) == "screenshots" }) SCREENSHOT_WORDS else emptyList())
+        val album = if (chatVisible) null else sc.texts.firstOrNull { t -> lc(t.first).let { x -> x.isNotEmpty() && names.any { n -> x == n || (x.contains(n) && x.length <= n.length + 14) } } }?.second
+        val switcher = if (chatVisible) null else
+            sc.texts.firstOrNull { t -> lc(t.first) in ALBUM_SWITCH_WORDS }?.second ?: sc.clicks.firstOrNull { ci -> lc(ci.desc) in ALBUM_SWITCH_WORDS }?.node
+        val thumb = if (chatVisible) null else sc.clicks.filter { ci ->
+            ci.rect.width() in (w * 0.15).toInt()..(w * 0.6).toInt() && ci.rect.height() in (ci.rect.width() * 0.6).toInt()..(ci.rect.width() * 1.7).toInt() &&
+                ci.rect.top >= h * 0.12 && lc(ci.desc).let { d -> CAMERA_WORDS.none { d.contains(it) } } &&
+                ci.cls?.let { it.endsWith("ImageView") || it.endsWith("View") || it.endsWith("FrameLayout") || it.endsWith("ImageButton") } == true
+        }.minWithOrNull(compareBy<ClickInfo>({ it.rect.top }, { it.rect.left }))?.node
+        val send = findSendButton(sc, strict = true)
+
+        val view = com.smartmanager.whatsappshoot.logic.AttachScreenView(
+            chatVisible = chatVisible, attachButton = attach != null, galleryEntry = gallery != null,
+            albumLabel = album != null, albumsSwitcher = switcher != null, thumbnail = thumb != null,
+            sendButton = send != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null,
+        )
+        val trace = "screen: class=${lastWindowClass ?: "?"} chat=$chatVisible editable=${sc.editable} send=${send?.second ?: "none"}"
+        if (trace != lastDriveTrace) { ActivityLog.add(trace); lastDriveTrace = trace }
+        val a = c.attachStep(view) ?: return
+        val ok: Boolean? = when (a) {
+            com.smartmanager.whatsappshoot.logic.AttachAction.ClickAttach -> clickAncestor(attach)
+            com.smartmanager.whatsappshoot.logic.AttachAction.ClickGallery -> clickAncestor(gallery)
+            com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbum -> clickAncestor(album)
+            com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbumsSwitcher -> clickAncestor(switcher)
+            com.smartmanager.whatsappshoot.logic.AttachAction.ClickThumbnail -> clickAncestor(thumb)
+            // The only place WhatsApp's Send button is tapped: opt-in setting, verified chat, picture chosen from the screenshots album.
+            com.smartmanager.whatsappshoot.logic.AttachAction.ClickSend -> clickAncestor(send?.first)
+            else -> null
+        }
+        if (ok != null) {
+            ActivityLog.add("clicked ${a::class.simpleName}: $ok")
+            if (!ok) c.attachClickFailed(a)
+        }
     }
 
     private fun clickAncestor(node: AccessibilityNodeInfo?): Boolean {
@@ -387,6 +443,13 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val MAX_EMPTY_RETRIES = 6
         private const val EMPTY_RETRY_MS = 350L
         private const val SHARE_TICK_MS = 400L
+        private val ATTACH_IDS = setOf("input_attach_button", "attach_button", "attach")
+        private val GALLERY_IDS = setOf("pickfiletype_gallery_holder")
+        private val ATTACH_WORDS = listOf("attach", "إرفاق", "ارفاق", "adjuntar", "anexar", "joindre", "anhängen", "allega", "ekle", "lampirkan", "прикрепить", "附件", "添付", "첨부")
+        private val GALLERY_WORDS = setOf("gallery", "photos", "photos & videos", "photos and videos", "معرض الصور", "المعرض", "معرض", "galería", "galeria", "galerie", "galleria", "galerij", "galeri", "галерея", "图库", "相册", "ギャラリー", "갤러리", "fotos")
+        private val SCREENSHOT_WORDS = listOf("screenshots", "لقطات الشاشة", "لقطات", "capturas de pantalla", "capturas de tela", "captures d'écran", "bildschirmfotos", "screenshot", "istantanee", "ekran görüntüleri", "снимки экрана", "截图", "スクリーンショット", "스크린샷")
+        private val ALBUM_SWITCH_WORDS = setOf("albums", "الألبومات", "álbumes", "álbuns", "albums ", "alben", "album")
+        private val CAMERA_WORDS = listOf("camera", "الكاميرا", "cámara", "câmera", "caméra", "kamera")
         private val SEND_WORDS = listOf("send", "إرسال", "ارسال", "enviar", "envoyer", "senden", "invia", "gönder", "kirim", "отправить", "发送", "送信", "보내기")
     }
 }

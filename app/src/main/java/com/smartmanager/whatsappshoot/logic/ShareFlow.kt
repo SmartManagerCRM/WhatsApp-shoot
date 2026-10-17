@@ -45,6 +45,9 @@ enum class ShareOutcome {
     ABORT_SEND_UNAVAILABLE,
     ABORT_TIMEOUT,
     ABORT_STOPPED,
+    ABORT_NO_GALLERY,
+    ABORT_NO_ALBUM,
+    ABORT_NO_IMAGE,
 }
 
 /**

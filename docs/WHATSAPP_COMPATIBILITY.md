@@ -38,3 +38,17 @@ two independent signals agree (e.g. activity class + conversation header view, o
 ## Android
 - minSdk 26. Accessibility screenshot needs Android 11+. MediaProjection works on all, with single-use consent on 14+.
 - Background activity-start limits: the consent dialog and the share screen are started from user taps (app UI or notification action); automatic mode only posts a notification when it needs the user.
+
+## Fully automatic sending: in-chat attach flow (v1.0.4)
+
+Since 1.0.4 "Fully automatic sending" no longer uses WhatsApp's share list. The chat is already open, so the app drives WhatsApp's own
+attach menu **inside that chat**: attach (+) → Gallery → **Screenshots** album → newest picture → Send. The destination is the open chat itself,
+so no name matching is needed. Rules enforced by `AttachFlowEngine` (unit-tested):
+
+- a picture is chosen only after the Screenshots album (the folder names from Settings) was opened; if the album cannot be found nothing is sent;
+- Send is tapped only after a picture was chosen, never while the chat screen is in front (there that button is the voice-note button);
+- "Sent" is reported only if the chat shows more outgoing media than before; otherwise "sent, unconfirmed".
+
+**Not verified on a real phone yet.** The labels it looks for (attach button, Gallery, Screenshots/Albums, Send) are matched by view id, accessibility
+label or text in common languages; WhatsApp versions differ. If a step is not found the run stops with a specific message and the Home screen's
+*Copy diagnostics* shows the last step reached. Manual mode (no opt-in) still opens WhatsApp's share sheet.

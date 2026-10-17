@@ -51,7 +51,7 @@ PY
 echo "--- Home screen"; ui_texts | tee /tmp/home.txt
 grep -q "Screenshot Assistant" /tmp/home.txt && ok "Home screen rendered (app title visible)" || bad "Home screen text not found"
 if XY=$(tap_text "License"); then adb shell input tap $XY; sleep 3; echo "--- License screen"; ui_texts | tee /tmp/lic.txt
-  grep -q "Create activation request\|Activated" /tmp/lic.txt && ok "License screen rendered" || bad "License screen not rendered"
+  grep -q "One license per phone\|Create activation request\|Activated" /tmp/lic.txt && ok "License screen rendered" || bad "License screen not rendered"
   grep -q "not provisioned" /tmp/lic.txt && bad "build has no license key" || ok "license public key is present in this build"
 else bad "License tab not found"; fi
 

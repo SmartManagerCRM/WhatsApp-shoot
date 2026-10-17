@@ -165,4 +165,64 @@ class AttachFlowTest {
             assertEquals(AttachAction.Done(ShareOutcome.ABORT_NOT_PHOTO), e.step(video))
         }
     }
+
+    // ---- speed: the grid is read as soon as it is stable; the fixed wait is only the fallback ----
+
+    private val landingGrid = galleryRecents.copy(gridSignature = 111)
+
+    @Test fun landingMode_stableGrid_isTappedWellBeforeTheFixedSettleTime() {
+        val e = AttachFlowEngine(3, clock, landingFirst = true)
+        assertEquals(AttachAction.ClickAttach, e.step(chat)); tick()
+        assertEquals(AttachAction.ClickGallery, e.step(menu)); tick()
+        var t = 0L; var action: AttachAction = AttachAction.Wait
+        while (action == AttachAction.Wait && t < AttachFlowEngine.ALBUM_SETTLE_MS) { action = e.step(landingGrid); if (action == AttachAction.Wait) { clock.advance(120); t += 120 } }
+        assertEquals(AttachAction.ClickThumbnail, action)
+        assertTrue("took ${t} ms", t < AttachFlowEngine.ALBUM_SETTLE_MS)
+    }
+
+    @Test fun landingMode_gridStillChanging_waitsAndTapsOnlyWhenSteady() {
+        val e = AttachFlowEngine(3, clock, landingFirst = true)
+        e.step(chat); tick(); e.step(menu); tick()
+        // the grid changes every poll for 700 ms (tiles / video labels still being drawn): no tap
+        for (n in 1..6) { assertEquals(AttachAction.Wait, e.step(landingGrid.copy(gridSignature = 100 + n))); clock.advance(120) }
+        // then it stops changing
+        var action: AttachAction = AttachAction.Wait
+        repeat(10) { if (action == AttachAction.Wait) { action = e.step(landingGrid.copy(gridSignature = 999)); if (action == AttachAction.Wait) clock.advance(120) } }
+        assertEquals(AttachAction.ClickThumbnail, action)
+    }
+
+    @Test fun landingMode_withoutSignature_keepsTheFullFixedWait() {
+        val e = AttachFlowEngine(3, clock, landingFirst = true)
+        e.step(chat); tick(); e.step(menu); tick()
+        assertEquals(AttachAction.Wait, e.step(galleryRecents))
+        clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS / 2)
+        assertEquals(AttachAction.Wait, e.step(galleryRecents))
+        clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS / 2 + 10)
+        assertEquals(AttachAction.ClickThumbnail, e.step(galleryRecents))
+    }
+
+    /** Simulated phone: every screen appears a fixed time after the tap that opens it; the app polls every 120 ms. */
+    @Test fun simulatedHappyPath_landingGallery_finishesInUnderThreeSeconds() {
+        val e = AttachFlowEngine(3, clock, landingFirst = true)
+        val start = clock.nowMs()
+        var screen = chat; var screenAt = start
+        fun show(v: AttachScreenView, delay: Long) { screen = v; screenAt = clock.nowMs() + delay }
+        var current = chat
+        var done: AttachAction.Done? = null
+        while (done == null && clock.nowMs() - start < 20_000) {
+            if (clock.nowMs() >= screenAt) current = screen
+            when (val a = e.step(current)) {
+                AttachAction.ClickAttach -> show(menu, 250)
+                AttachAction.ClickGallery -> show(landingGrid, 350)
+                AttachAction.ClickThumbnail -> show(landingGrid.copy(sendButton = true), 150)
+                AttachAction.ClickSend -> show(chat.copy(outgoingMediaCount = 4), 300)
+                is AttachAction.Done -> done = a
+                else -> Unit
+            }
+            clock.advance(120)
+        }
+        val took = clock.nowMs() - start
+        assertEquals(AttachAction.Done(ShareOutcome.SENT_CONFIRMED), done)
+        assertTrue("flow took $took ms", took < 3_000)
+    }
 }

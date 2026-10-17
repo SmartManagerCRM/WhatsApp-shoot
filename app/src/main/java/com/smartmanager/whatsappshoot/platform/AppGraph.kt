@@ -105,7 +105,16 @@ class AppGraph private constructor(app: Application) {
         bg.execute { if (settings.current.autoCleanup) repository.cleanupOlderThan(settings.current.retentionMs) }
     }
 
-    fun refreshLicense() = bg.execute { license.refresh() }
+    private val licenseRefreshQueued = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** Start-up and onResume both ask for a refresh (Keystore + signature work): a request that is already waiting covers the new one. */
+    fun refreshLicense() {
+        if (!licenseRefreshQueued.compareAndSet(false, true)) return
+        bg.execute {
+            licenseRefreshQueued.set(false)
+            license.refresh()
+        }
+    }
 
     // ---- screen-capture consent ----
 

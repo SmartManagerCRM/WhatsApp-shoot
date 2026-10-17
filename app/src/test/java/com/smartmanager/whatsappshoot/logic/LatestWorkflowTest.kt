@@ -221,7 +221,7 @@ class LatestWorkflowTest {
 
     // ---- stopping ----
     @Test fun stopCancelsPendingLookup_andLaterEvents() {
-        val r = rig(); r.source.add(1); r.controller.onScreen(r.convSnapshot("Alice")); r.scheduler.advance(300)
+        val r = rig(); r.source.add(1); r.controller.onScreen(r.convSnapshot("Alice")); r.scheduler.advance(AutomationSettings.SETTLE_MS / 2)
         r.controller.stop(); r.scheduler.advance(10_000)
         assertEquals(0, r.provider.finds); assertEquals(INACTIVE, r.state)
         r.open("Alice"); assertEquals(0, r.provider.finds)

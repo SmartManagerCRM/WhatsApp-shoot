@@ -62,22 +62,22 @@ class ControllerTest {
 
     @Test fun userChangesConversationBeforeCapture_timerRestartsForNewOne() {
         val r = rig(); r.controller.start()
-        r.controller.onScreen(conversation("Alice")); r.scheduler.advance(500)
+        r.controller.onScreen(conversation("Alice")); r.scheduler.advance(AutomationSettings.SETTLE_MS / 2)
         r.controller.onScreen(conversation("Bob"))
-        r.scheduler.advance(500); assertEquals("old timer cancelled", 0, r.engine.calls)
-        r.scheduler.advance(400); assertEquals(1, r.engine.calls)
+        r.scheduler.advance(AutomationSettings.SETTLE_MS / 2); assertEquals("old timer cancelled", 0, r.engine.calls)
+        r.scheduler.advance(AutomationSettings.SETTLE_MS); assertEquals(1, r.engine.calls)
     }
 
     @Test fun userSwitchesApplicationBeforeCapture_noCapture() {
         val r = rig(); r.controller.start()
-        r.controller.onScreen(conversation()); r.scheduler.advance(300)
+        r.controller.onScreen(conversation()); r.scheduler.advance(AutomationSettings.SETTLE_MS / 2)
         r.controller.onScreen(otherApp()); r.scheduler.advance(10_000)
         assertEquals(0, r.engine.calls); assertEquals(WAITING_FOR_WHATSAPP, r.state)
     }
 
     @Test fun ownUiAndSystemUiEventsDoNotResetAnything() {
         val r = rig(); r.controller.start()
-        r.controller.onScreen(conversation()); r.scheduler.advance(300)
+        r.controller.onScreen(conversation()); r.scheduler.advance(AutomationSettings.SETTLE_MS / 2)
         r.controller.onScreen(ScreenSnapshot("com.smartmanager.whatsappshoot"))
         r.controller.onScreen(ScreenSnapshot("com.android.systemui"))
         r.scheduler.advance(600); assertEquals(1, r.engine.calls)
@@ -94,7 +94,7 @@ class ControllerTest {
 
     @Test fun attachmentPickerOpen_noCaptureAndTimerCancelled() {
         val r = rig(); r.controller.start()
-        r.controller.onScreen(conversation()); r.scheduler.advance(300)
+        r.controller.onScreen(conversation()); r.scheduler.advance(AutomationSettings.SETTLE_MS / 2)
         r.controller.onScreen(wa("conversation_contact_name", "entry", "pickfiletype_gallery_holder", cls = "com.whatsapp.Conversation"))
         r.scheduler.advance(10_000); assertEquals(0, r.engine.calls)
         r.controller.onScreen(conversation()); r.scheduler.advance(1_000)   // picker closed again
@@ -142,7 +142,7 @@ class ControllerTest {
 
     @Test fun stop_cancelsFutureCaptures_andDeletesScreenshot() {
         val r = rig(); r.controller.start()
-        r.controller.onScreen(conversation()); r.scheduler.advance(300)
+        r.controller.onScreen(conversation()); r.scheduler.advance(AutomationSettings.SETTLE_MS / 2)
         r.controller.stop(); r.scheduler.advance(10_000)
         assertEquals(0, r.engine.calls); assertEquals(INACTIVE, r.state)
         r.controller.onScreen(conversation()); r.scheduler.advance(10_000)
@@ -175,7 +175,7 @@ class ControllerTest {
 
     @Test fun pauseAndResume() {
         val r = rig(); r.controller.start()
-        r.controller.onScreen(conversation()); r.scheduler.advance(300)
+        r.controller.onScreen(conversation()); r.scheduler.advance(AutomationSettings.SETTLE_MS / 2)
         r.controller.pause(); r.scheduler.advance(10_000)
         assertEquals(0, r.engine.calls); assertEquals(StatusMessage.PAUSED, r.message)
         r.controller.onScreen(conversation()); r.scheduler.advance(10_000); assertEquals("ignored while paused", 0, r.engine.calls)

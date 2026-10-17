@@ -43,6 +43,8 @@ class AutomationController(
     private var shareEngine: ShareFlowEngine? = null
     private var attachEngine: AttachFlowEngine? = null
     private var activeTilePlan: TilePlan? = null
+    private var visitStartMs = 0L
+    private var attachLanding = false
     private var shareTimeout: Cancellable? = null
     private var captureEpoch = 0
     private var captureWatchdog: Cancellable? = null
@@ -185,6 +187,7 @@ class AutomationController(
             cancelPending()
             guard.conversationLeft()
             currentIdentity = id
+            visitStartMs = clock.nowMs()
         }
         conversationType = c.conversationType
         currentOutgoing = c.outgoingMediaCount
@@ -417,9 +420,10 @@ class AutomationController(
             }
             val landing = galleryMode || (settings().landingGalleryFirst && route == GalleryRoute.LANDING)
             ActivityLog.add(if (galleryMode) "newest photo mode: plan verified=${activeTilePlan?.verified} newerVideos=${activeTilePlan?.skip}" else if (landing) "screenshot is the newest item on the phone: using the landing gallery" else "using the Screenshots album")
+            attachLanding = landing
             attachEngine = AttachFlowEngine(baselineOutgoing, clock, landing)
             shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
-            ActivityLog.add("in-chat attach flow started")
+            ActivityLog.add("in-chat attach flow started (timing: ${sinceVisit()} ms after the chat appeared)")
             return
         }
         when (val r = launcher.launchShare(shot, shotIdentity, hasher, direct)) {
@@ -460,6 +464,12 @@ class AutomationController(
 
     /** Set while the "newest photo in WhatsApp's gallery" flow runs: how to choose the tile (null in the other modes). */
     fun tilePlan(): TilePlan? = if (attachFlowActive) activeTilePlan else null
+
+    /** True while the running attach flow uses WhatsApp's landing gallery (no album dropdown, so no popup window has to be read). */
+    val attachLandingMode: Boolean get() = attachFlowActive && attachLanding
+
+    /** Milliseconds since the open chat was first recognised (diagnostics only). */
+    fun sinceVisit(): Long = if (visitStartMs > 0) clock.nowMs() - visitStartMs else -1
 
     /** Folder names shown as albums in WhatsApp's gallery. */
     fun albumNames(): List<String> = ScreenshotFolderMatcher.leafNames(settings().screenshotFolders)
@@ -505,6 +515,7 @@ class AutomationController(
     fun onShareOutcome(o: ShareOutcome) {
         if (machine.state != AutomationState.PREPARING_ATTACHMENT) return
         shareTimeout?.cancel(); shareTimeout = null; shareEngine = null; attachEngine = null
+        ActivityLog.add("timing: flow ended $o, ${sinceVisit()} ms after the chat appeared")
         when (o) {
             ShareOutcome.ROW_SELECTED -> { record(LedgerStatus.PREPARED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.ATTACHMENT_READY) }
             ShareOutcome.SENT_CONFIRMED -> { record(LedgerStatus.SENT_CONFIRMED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.SEND_CONFIRMED) }

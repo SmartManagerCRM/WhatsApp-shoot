@@ -29,6 +29,11 @@ data class AttachScreenView(
     /** The open dropdown list can be scrolled further. */
     val canScroll: Boolean = false,
     val outgoingMediaCount: Int? = null,
+    /**
+     * Fingerprint of what the gallery grid shows (tiles, their video marks, labels); 0 = not available. While it keeps changing the grid is still
+     * loading; once it has been stable for a moment the next tap does not need to wait for the full fixed settle time.
+     */
+    val gridSignature: Int = 0,
 )
 
 sealed class AttachAction {
@@ -76,6 +81,8 @@ class AttachFlowEngine(
     private var sendClicks = 0
     private var chatBackAt = -1L
     private var scrolls = 0
+    private var lastSignature = 0
+    private var signatureSince = -1L
 
     var note: String = ""
         private set
@@ -89,6 +96,7 @@ class AttachFlowEngine(
         if (finished) return AttachAction.Wait
         val now = clock.nowMs()
         if (phaseSince < 0) phaseSince = now
+        if (v.gridSignature != lastSignature) { lastSignature = v.gridSignature; signatureSince = now }
         val a = when (phase) {
             Phase.OPEN_ATTACH -> openAttach(v, now)
             Phase.AWAIT_MENU -> awaitMenu(v, now)
@@ -104,6 +112,13 @@ class AttachFlowEngine(
     private fun go(p: Phase, now: Long) { phase = p; phaseSince = now }
     private fun click(a: AttachAction, now: Long): AttachAction { lastClickAt = now; return a }
     private fun settled(now: Long) = now - lastClickAt >= CLICK_GAP_MS
+
+    /** The grid after the album/gallery opened is ready to be read: stable for a moment (fast path) or the full fixed wait has passed. */
+    private fun gridSettled(v: AttachScreenView, now: Long): Boolean {
+        val waited = now - albumVerifiedAt
+        if (waited >= ALBUM_SETTLE_MS) return true
+        return v.gridSignature != 0 && waited >= GRID_MIN_MS && now - signatureSince >= GRID_STABLE_MS
+    }
 
     private fun openAttach(v: AttachScreenView, now: Long): AttachAction {
         if (v.chatVisible && v.attachButton && settled(now)) {
@@ -133,7 +148,7 @@ class AttachFlowEngine(
             // The landing gallery's first tile is the newest picture, which was verified to be the screenshot.
             if (!v.pickerOpen) return if (now - phaseSince > PICKER_PATIENCE_MS) finish(ShareOutcome.ABORT_NO_IMAGE) else AttachAction.Wait
             if (albumVerifiedAt < 0) { albumVerifiedAt = now; phaseSince = now }
-            if (now - albumVerifiedAt < ALBUM_SETTLE_MS) return AttachAction.Wait
+            if (!gridSettled(v, now)) return AttachAction.Wait
             if (v.thumbnail && v.thumbIsVideo) return finish(ShareOutcome.ABORT_NOT_PHOTO)
             if (v.thumbnail) { go(Phase.AWAIT_SEND, now); return click(AttachAction.ClickThumbnail, now) }
             return if (now - phaseSince > PICKER_PATIENCE_MS) finish(ShareOutcome.ABORT_NO_IMAGE) else AttachAction.Wait
@@ -156,7 +171,7 @@ class AttachFlowEngine(
         }
         // 2. Album verified: let the grid reload, then take the newest picture.
         if (albumVerifiedAt < 0) { albumVerifiedAt = now; phaseSince = now }
-        if (now - albumVerifiedAt < ALBUM_SETTLE_MS) return AttachAction.Wait
+        if (!gridSettled(v, now)) return AttachAction.Wait
         if (v.thumbnail && v.thumbIsVideo) return finish(ShareOutcome.ABORT_NOT_PHOTO)
         if (v.thumbnail && v.pickerOpen) {
             go(Phase.AWAIT_SEND, now)
@@ -200,12 +215,14 @@ class AttachFlowEngine(
     }
 
     companion object {
-        const val CLICK_GAP_MS = 700L
+        const val CLICK_GAP_MS = 350L
         const val OPEN_PATIENCE_MS = 6_000L
         const val MENU_PATIENCE_MS = 3_000L
         const val PICKER_PATIENCE_MS = 10_000L
         const val ALBUM_LOOK_MS = 1_500L
         const val ALBUM_SETTLE_MS = 1_000L
+        const val GRID_MIN_MS = 400L
+        const val GRID_STABLE_MS = 300L
         const val SWITCHER_RETRY_MS = 2_500L
         const val MAX_SWITCHER_CLICKS = 3
         const val MAX_ALBUM_CLICKS = 3

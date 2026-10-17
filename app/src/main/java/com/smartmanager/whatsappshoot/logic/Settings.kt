@@ -54,7 +54,7 @@ data class AutomationSettings(
         }
 
     companion object {
-        const val SETTLE_MS = 800L
+        const val SETTLE_MS = 300L
         const val DEFAULT_DELAY_MS = 3_000L
         const val MIN_DELAY_MS = 500L
         const val MAX_DELAY_MS = 30_000L

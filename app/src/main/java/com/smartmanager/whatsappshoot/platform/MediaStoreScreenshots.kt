@@ -147,9 +147,15 @@ class MediaStoreLatestProvider(
 
     override fun find(settings: AutomationSettings, callback: (SelectionResult) -> Unit) {
         worker.execute {
+            val t0 = android.os.SystemClock.elapsedRealtime()
             val r = try {
                 selector.selectLatest(settings.screenshotFolders, anyFolder = settings.imageSource == com.smartmanager.whatsappshoot.logic.ImageSource.WHATSAPP_GALLERY)
             } catch (e: Exception) { SelectionResult.Failed }
+            // The video lookup behind the tile plan is a content-provider query: do it here, off the main thread, so the flow start does not wait for it.
+            if (r is SelectionResult.Found && settings.imageSource == com.smartmanager.whatsappshoot.logic.ImageSource.WHATSAPP_GALLERY) {
+                planFor = r.image.candidate.id to computePlan(r.image)
+            }
+            com.smartmanager.whatsappshoot.logic.ActivityLog.add("timing: newest-photo lookup ${android.os.SystemClock.elapsedRealtime() - t0} ms")
             main.post { callback(r) }
         }
     }
@@ -159,8 +165,15 @@ class MediaStoreLatestProvider(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
         else context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
 
+    @Volatile private var planFor: Pair<Long, TilePlan>? = null
+
     /** Counts the videos at least as new as [image]: they sit before it in WhatsApp's newest-first gallery. Needs the video permission. */
-    override fun tilePlan(image: LatestImage): TilePlan = try {
+    override fun tilePlan(image: LatestImage): TilePlan {
+        planFor?.let { (id, plan) -> if (id == image.candidate.id) { planFor = null; return plan } } // computed during the lookup
+        return computePlan(image)
+    }
+
+    private fun computePlan(image: LatestImage): TilePlan = try {
         if (!videoPermitted()) {
             TilePlan(verified = false, skip = 0)
         } else {
@@ -236,7 +249,7 @@ class MediaStoreLatestProvider(
                 val fmt = if (ImageFormats.extensionFor(image.candidate.mime) == "png") ImageFormat.PNG else ImageFormat.JPEG
                 val p = repository.newTempFile(fmt).also { part = it }
                 val input = source.open(image.candidate) ?: throw IOException("gone")
-                input.use { i -> FileOutputStream(p).use { o -> i.copyTo(o); o.fd.sync() } }
+                input.use { i -> FileOutputStream(p).use { o -> i.copyTo(o, 64 * 1024) } }
                 val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeFile(p.path, b)
                 CaptureResult.Saved(repository.commit(p, fmt, b.outWidth, b.outHeight))

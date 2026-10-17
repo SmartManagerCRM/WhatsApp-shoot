@@ -11,16 +11,16 @@ import java.util.Locale
  */
 object ActivityLog {
     private const val MAX = 120
-    private val lines = ArrayList<String>()
+    private val lines = java.util.ArrayDeque<String>()
+    private val format = SimpleDateFormat("HH:mm:ss.SSS", Locale.US) // one formatter, used under the lock (creating one per line is wasteful)
 
     @Synchronized
     fun add(message: String) {
-        val t = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
-        lines += "$t $message"
-        while (lines.size > MAX) lines.removeAt(0)
+        lines.addLast(format.format(Date()) + " " + message)
+        while (lines.size > MAX) lines.removeFirst()
     }
 
-    @Synchronized fun last(n: Int): List<String> = lines.takeLast(n)
+    @Synchronized fun last(n: Int): List<String> = lines.toList().takeLast(n)
     @Synchronized fun text(): String = lines.joinToString("\n")
     @Synchronized fun clear() = lines.clear()
 }

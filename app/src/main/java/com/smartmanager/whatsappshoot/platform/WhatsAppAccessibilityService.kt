@@ -64,7 +64,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         // Coalesce bursts of events into one evaluation (also the first line of duplicate prevention).
         pendingPackage = pkg
         main.removeCallbacks(evaluate)
-        main.postDelayed(evaluate, EVENT_DEBOUNCE_MS)
+        main.postDelayed(evaluate, if (graph.controller.shareFlowActive) FLOW_EVENT_DEBOUNCE_MS else EVENT_DEBOUNCE_MS)
     }
 
     @Volatile private var pendingPackage: String? = null
@@ -110,7 +110,17 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         if (pkg in profile.packages) {
             val kind = graph.classifier.classify(snapshot).kind.name
             graph.lastScreen.value = "$kind (${lastWindowClass ?: "?"})"
-            ScreenReports.record(this, pkg, lastWindowClass, kind, snapshot.viewIds, lastNodes)
+            // The diagnostic report lists every node (string building): only needed when WhatsApp shows a screen layout not recorded yet.
+            val key = "$pkg|${lastWindowClass}|${snapshot.viewIds.sorted().hashCode()}"
+            if (key != lastReportKey) {
+                lastReportKey = key
+                val root = rootInActiveWindow
+                if (root != null && root.packageName?.toString() == pkg) {
+                    val full = scan(root, report = true)
+                    releaseScan(full, root)
+                    ScreenReports.record(this, pkg, lastWindowClass, kind, snapshot.viewIds, full.nodes)
+                }
+            }
         }
         graph.controller.onScreen(snapshot)
         updateOverlay(snapshot)
@@ -141,7 +151,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     private class ClickInfo(val node: AccessibilityNodeInfo, val desc: String?, val cls: String?, val rect: android.graphics.Rect, val id: String? = null)
 
     /** @param retain keep every visited node un-recycled so the caller may click them afterwards (share flow only). */
-    private fun scan(root: AccessibilityNodeInfo, retain: Boolean = false): Scan {
+    private fun scan(root: AccessibilityNodeInfo, retain: Boolean = false, report: Boolean = true): Scan {
         val r = Scan()
         val screenH = resources.displayMetrics.heightPixels.coerceAtLeast(1)
         val queue = ArrayDeque<AccessibilityNodeInfo>()
@@ -169,7 +179,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
                 val key = rect.top * 10_000L + rect.left
                 if (key < r.titleKey) { r.titleKey = key; r.title = n.text.toString() }
             }
-            if (r.nodes.size < MAX_REPORT_NODES && (short != null || n.isEditable || (hasText && rect.top < screenH * 0.25))) {
+            if (report && r.nodes.size < MAX_REPORT_NODES && (short != null || n.isEditable || (hasText && rect.top < screenH * 0.25))) {
                 r.nodes += "${short ?: "-"}|${cls?.substringAfterLast('.') ?: "?"}|text=${if (hasText) "Y" else "N"}|edit=${if (n.isEditable) "Y" else "N"}|click=${if (n.isClickable) "Y" else "N"}|top=${rect.top * 100 / screenH}%"
             }
             if (short != null) {
@@ -189,9 +199,9 @@ class WhatsAppAccessibilityService : AccessibilityService() {
 
     private fun buildSnapshot(root: AccessibilityNodeInfo?, expectedPkg: String): ScreenSnapshot {
         if (root == null || root.packageName?.toString() != expectedPkg) return ScreenSnapshot(expectedPkg, windowClassName = lastWindowClass)
-        val sc = scan(root)
+        val sc = scan(root, report = false)
         releaseScan(sc, root)
-        lastNodes = sc.nodes
+        lastIds = sc.ids
         return ScreenSnapshot(
             expectedPkg, sc.ids, sc.header, lastWindowClass,
             outgoingMediaCount = if (sc.outgoing > 0 || sc.header != null || sc.editable) sc.outgoing else null,
@@ -199,7 +209,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         )
     }
 
-    @Volatile private var lastNodes: List<String> = emptyList()
+    @Volatile private var lastIds: Set<String> = emptySet()
+    private var lastReportKey = ""
 
     private fun releaseScan(sc: Scan, root: AccessibilityNodeInfo) {
         sc.rowNodes.forEach { if (it !== root) recycleCompat(it) }
@@ -282,13 +293,16 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     private var lastLabels = ""
     private var lastSendCands = ""
     private var lastTileLog = ""
+    @Volatile private var lastScanMs = 0L
 
     private fun driveShareFlow(pkg: String) {
         val c = graph.controller
         if (!c.shareFlowActive) return
         val root = rootInActiveWindow ?: return
         if (root.packageName?.toString() != pkg) return
-        val sc = scan(root, retain = true)
+        val scanStart = android.os.SystemClock.elapsedRealtime()
+        val sc = scan(root, retain = true, report = false)
+        lastScanMs = android.os.SystemClock.elapsedRealtime() - scanStart
         if (c.attachFlowActive) { driveAttachFlow(c, sc, pkg, root); return }
         val cls = lastWindowClass
         val send = findSendButton(sc)
@@ -368,11 +382,11 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val sc = primary
         val primaryIsPopup = "entry" !in primary.ids && "grid" !in primary.ids
         var popupScroll: AccessibilityNodeInfo? = null
-        try {
+        if (!c.attachLandingMode) try {
             for (win in windows.orEmpty()) {
                 val r = win.root ?: continue
                 if (r.packageName?.toString() != pkg || r == root) continue
-                val other = scan(r, retain = true)
+                val other = scan(r, retain = true, report = false)
                 val isConversationWindow = "entry" in other.ids || "input_attach_button" in other.ids || "grid" in other.ids
                 if (!isConversationWindow && other.scrollNode != null) popupScroll = other.scrollNode
                 sc.ids += other.ids; sc.labels += other.labels; sc.texts += other.texts; sc.clicks += other.clicks
@@ -444,6 +458,12 @@ class WhatsAppAccessibilityService : AccessibilityService() {
                 ((choice as? com.smartmanager.whatsappshoot.logic.TileChoice.Pick)?.let { " #${it.index}${if (it.byPosition) " (by position)" else ""}" } ?: "")
             if (d != lastTileLog) { lastTileLog = d; ActivityLog.add(d) }
         }
+        // Changes while the grid is still loading (tiles appearing, video marks and labels being drawn); steady once it is ready to be read.
+        val gridSignature = if (tiles.isEmpty()) 0 else {
+            var hsh = tiles.size * 31 + sc.labels.size
+            tiles.take(12).forEachIndexed { i, t -> hsh = hsh * 31 + t.rect.left * 7 + t.rect.top * 13 + (if (flags[i]) 1 else 0) }
+            if (hsh == 0) 1 else hsh
+        }
         // Send: WhatsApp's own id or a "send" label only. Position-based guesses are NOT used here: the chat's camera button sits in the same corner.
         val send = sc.sendNode?.let { it to "id" }
             ?: sc.clicks.firstOrNull { ci -> lc(ci.desc).let { d -> d.isNotEmpty() && SEND_WORDS.any { w2 -> d.contains(w2) } } }?.let { it.node to "label" }
@@ -452,7 +472,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             chatVisible = chatVisible, attachButton = attach != null, galleryEntry = gallery != null,
             pickerOpen = pickerOpen, albumSelected = currentAlbumOk, albumLabel = albumItem != null,
             albumsSwitcher = spinner != null, thumbnail = hasTile, thumbIsVideo = thumbIsVideo, sendButton = send != null,
-            canScroll = popupScroll != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null,
+            canScroll = popupScroll != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null, gridSignature = gridSignature,
         )
         if (pickerOpen && !currentAlbumOk) {
             // Gallery album names only (WhatsApp's media picker, not a conversation): shows how the albums are labelled.
@@ -478,7 +498,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             else -> null
         }
         if (ok != null) {
-            ActivityLog.add("clicked ${a.javaClass.simpleName}: $ok")
+            ActivityLog.add("clicked ${a.javaClass.simpleName}: $ok (timing: ${c.sinceVisit()} ms after the chat appeared, last screen read ${lastScanMs} ms)")
             if (!ok && a != com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker) c.attachClickFailed(a)
         }
     }
@@ -519,7 +539,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     companion object {
         @Volatile var instance: WhatsAppAccessibilityService? = null
             private set
-        private const val EVENT_DEBOUNCE_MS = 200L
+        private const val EVENT_DEBOUNCE_MS = 100L
+        private const val FLOW_EVENT_DEBOUNCE_MS = 40L
         private const val HIDE_OVERLAY_SETTLE_MS = 150L
         private const val MAX_NODES = 600
         private const val MAX_REPORT_NODES = 160
@@ -527,8 +548,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val MAX_CLICKS = 400
         private const val MIN_LIST_ROWS = 3
         private const val MAX_EMPTY_RETRIES = 6
-        private const val EMPTY_RETRY_MS = 350L
-        private const val SHARE_TICK_MS = 400L
+        private const val EMPTY_RETRY_MS = 200L
+        private const val SHARE_TICK_MS = 120L
         private val ATTACH_IDS = setOf("input_attach_button", "attach_button", "attach")
         private val GALLERY_IDS = setOf("pickfiletype_gallery_holder")
         private val DURATION = Regex("\\d{1,2}:\\d{2}(:\\d{2})?")

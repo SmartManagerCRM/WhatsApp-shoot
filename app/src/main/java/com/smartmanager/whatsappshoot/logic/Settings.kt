@@ -26,6 +26,8 @@ data class AutomationSettings(
     val screenshotFolders: List<String> = listOf("Screenshots"),
     /** Explicit opt-in (set only after the user confirms a warning): the app may press WhatsApp's Send button itself. */
     val fullyAutomaticSend: Boolean = false,
+    /** Fully automatic sending: take the first picture of WhatsApp's landing gallery when the screenshot is verified to be the newest picture on the phone. */
+    val landingGalleryFirst: Boolean = true,
     val mode: CaptureMode = CaptureMode.AUTOMATIC,
     /** Delay used by [CaptureMode.DELAYED]. */
     val delayMs: Long = DEFAULT_DELAY_MS,

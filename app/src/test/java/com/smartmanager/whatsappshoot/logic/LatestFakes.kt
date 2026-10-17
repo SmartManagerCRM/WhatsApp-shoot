@@ -41,6 +41,8 @@ class FakeSource(val clock: FakeClock) : ScreenshotSource {
 class FakeLatestProvider(private val source: FakeSource, private val repo: ScreenshotRepository, clock: Clock) : LatestScreenshotProvider {
     val selector = ScreenshotSelector(source, clock)
     var finds = 0
+    var newestOverall = false
+    override fun isNewestPicture(image: LatestImage) = newestOverall
     var failStaging = false
     var hangFind = false
     private var pendingFind: ((SelectionResult) -> Unit)? = null

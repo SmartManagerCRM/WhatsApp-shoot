@@ -47,6 +47,9 @@ interface AttachmentLauncher {
 interface LatestScreenshotProvider {
     fun find(settings: AutomationSettings, callback: (SelectionResult) -> Unit)
     fun stage(image: LatestImage, settings: AutomationSettings, callback: (CaptureResult) -> Unit)
+
+    /** True only if [image] is, beyond doubt, the newest picture in the whole media library (so WhatsApp's first gallery tile is that image). */
+    fun isNewestPicture(image: LatestImage): Boolean = false
 }
 
 enum class DirectSelectOutcome { SELECTED, AMBIGUOUS, NOT_FOUND, TIMEOUT }

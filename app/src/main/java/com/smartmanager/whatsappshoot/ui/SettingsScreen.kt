@@ -88,6 +88,8 @@ fun SettingsScreen(graph: AppGraph) {
             )
             Section("Fully automatic sending")
             SwitchRow("Let the app press Send (off by default)", s.fullyAutomaticSend) { b -> if (b) confirmAuto = true else upd { it.copy(fullyAutomaticSend = false) } }
+            SwitchRow("Use WhatsApp's landing gallery (first picture) when the screenshot is the newest picture", s.landingGalleryFirst) { b -> upd { it.copy(landingGalleryFirst = b) } }
+            Text("The app first checks on the phone that your newest picture is the screenshot; only then does it take the first picture WhatsApp shows. Otherwise it opens the Screenshots album instead.", style = MaterialTheme.typography.bodySmall)
             Text("Off: the app opens WhatsApp's share screen with the image and you press Send.", style = MaterialTheme.typography.bodySmall)
         }
 

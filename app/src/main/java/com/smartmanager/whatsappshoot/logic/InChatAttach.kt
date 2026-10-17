@@ -51,13 +51,15 @@ sealed class AttachAction {
  *
  * Safety rules enforced here (and tested):
  *  - the flow only starts while the verified chat is in front, so the destination is the chat itself;
- *  - a picture is chosen only after the gallery's album dropdown shows the Screenshots album (otherwise a newer photo or a received image could be sent);
+ *  - a picture is chosen only after the gallery's album dropdown shows the Screenshots album, or (landing mode) after the phone's media library confirmed that the screenshot is the newest picture (otherwise a newer photo or a received image could be sent);
  *  - Send is clicked only after a picture was chosen and never while the chat itself is in front;
  *  - success is [ShareOutcome.SENT_CONFIRMED] only if the chat shows MORE outgoing media than before; otherwise SENT_UNCONFIRMED.
  */
 class AttachFlowEngine(
     private val baselineOutgoing: Int?,
     private val clock: Clock = Clock { System.currentTimeMillis() },
+    /** The screenshot was verified to be the newest picture on the phone: the first tile of WhatsApp's landing gallery is it. */
+    private val landingFirst: Boolean = false,
 ) {
     private enum class Phase { OPEN_ATTACH, AWAIT_MENU, AWAIT_PICKER, AWAIT_SEND, AWAIT_RESULT, FINISHED }
 
@@ -125,6 +127,14 @@ class AttachFlowEngine(
 
     private fun awaitPicker(v: AttachScreenView, now: Long): AttachAction {
         if (!settled(now)) return AttachAction.Wait
+        if (landingFirst) {
+            // The landing gallery's first tile is the newest picture, which was verified to be the screenshot.
+            if (!v.pickerOpen) return if (now - phaseSince > PICKER_PATIENCE_MS) finish(ShareOutcome.ABORT_NO_IMAGE) else AttachAction.Wait
+            if (albumVerifiedAt < 0) { albumVerifiedAt = now; phaseSince = now }
+            if (now - albumVerifiedAt < ALBUM_SETTLE_MS) return AttachAction.Wait
+            if (v.thumbnail) { go(Phase.AWAIT_SEND, now); return click(AttachAction.ClickThumbnail, now) }
+            return if (now - phaseSince > PICKER_PATIENCE_MS) finish(ShareOutcome.ABORT_NO_IMAGE) else AttachAction.Wait
+        }
         // 1. The album must be the wanted one, as shown by the gallery itself.
         if (!v.albumSelected) {
             albumVerifiedAt = -1

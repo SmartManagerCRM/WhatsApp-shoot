@@ -135,4 +135,23 @@ class AttachFlowTest {
         assertEquals(AttachAction.Done(ShareOutcome.ABORT_STOPPED), e.stop())
         assertEquals(AttachAction.Wait, e.step(chat))
     }
+
+    @Test fun landingMode_takesTheFirstTileWithoutTouchingTheAlbumDropdown() {
+        val e = AttachFlowEngine(3, clock, landingFirst = true)
+        assertEquals(AttachAction.ClickAttach, e.step(chat)); tick()
+        assertEquals(AttachAction.ClickGallery, e.step(menu)); tick()
+        assertEquals(AttachAction.Wait, e.step(galleryRecents))
+        clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100)
+        assertEquals(AttachAction.ClickThumbnail, e.step(galleryRecents)); tick()
+        assertEquals(AttachAction.ClickSend, e.step(AttachScreenView(chatVisible = false, sendButton = true))); tick()
+        assertEquals(AttachAction.Done(ShareOutcome.SENT_CONFIRMED), e.step(chat.copy(outgoingMediaCount = 4)))
+    }
+
+    @Test fun landingMode_noTilesEver_abortsNoImage() {
+        val e = AttachFlowEngine(3, clock, landingFirst = true)
+        e.step(chat); tick(); e.step(menu); tick()
+        var done: AttachAction? = null
+        repeat(40) { clock.advance(500); val a = e.step(galleryRecents.copy(thumbnail = false)); if (a is AttachAction.Done) done = a }
+        assertEquals(AttachAction.Done(ShareOutcome.ABORT_NO_IMAGE), done)
+    }
 }

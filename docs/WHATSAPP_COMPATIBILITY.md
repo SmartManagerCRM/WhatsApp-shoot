@@ -70,3 +70,9 @@ The 1.0.5 report showed how WhatsApp Business actually builds its attach UI:
 - the chat's own media thumbnails (`thumb`) are never used as gallery tiles.
 - Send is found only by WhatsApp's id (`send`) or a "send" label. The position-based guess used for the share sheet is NOT used in the gallery flow: in the chat the camera button sits in the same corner.
 - if no Send control is identified, the log prints the lower on-screen controls ("lower controls: …") so the id can be added.
+
+### v1.0.7: landing gallery first
+On a real phone the Screenshots-album route stalled in WhatsApp's landing gallery. Fully automatic sending now takes the **first picture of the landing gallery**
+when (and only when) the phone's media library confirms that the staged screenshot is the newest picture on the device (`isNewestPicture`: it is the newest image, and the next one is strictly older).
+If a newer picture exists - or the setting "Use WhatsApp's landing gallery" is off - the Screenshots-album route (v1.0.6) is used instead.
+Limit: only images are checked (the app has no video permission), so a video newer than the screenshot could still be the first tile. That is the accepted trade-off of this mode.

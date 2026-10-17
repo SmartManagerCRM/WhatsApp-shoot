@@ -286,6 +286,19 @@ class LatestWorkflowTest {
         assertEquals("no share sheet is opened", 0, r.launcher.calls)
     }
 
+    @Test fun fullAutoSend_landingGallery_usedOnlyWhenScreenshotIsVerifiedNewest() {
+        val verified = autoRig(); verified.provider.newestOverall = true; verified.open("Alice", outgoing = 4)
+        verified.chatView(4); verified.tick(); verified.menu(); verified.tick()
+        verified.clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100); verified.gallery(); verified.clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100)
+        assertEquals("no album dropdown in landing mode", AttachAction.ClickThumbnail, verified.gallery())
+        val other = autoRig(); other.provider.newestOverall = false; other.open("Alice", outgoing = 4)
+        other.chatView(4); other.tick(); other.menu(); other.tick()
+        assertEquals("a newer picture exists: the Screenshots album is used", AttachAction.ClickAlbumsSwitcher, other.gallery())
+        val off = autoRig(); off.settings = off.settings.copy(landingGalleryFirst = false); off.provider.newestOverall = true; off.open("Alice", outgoing = 4)
+        off.chatView(4); off.tick(); off.menu(); off.tick()
+        assertEquals("setting off: always the Screenshots album", AttachAction.ClickAlbumsSwitcher, off.gallery())
+    }
+
     @Test fun fullAutoSend_confirmedWhenEvidenceExists() {
         val r = autoRig(); r.open("Alice", outgoing = 4)
         r.driveToSend(); r.tick()

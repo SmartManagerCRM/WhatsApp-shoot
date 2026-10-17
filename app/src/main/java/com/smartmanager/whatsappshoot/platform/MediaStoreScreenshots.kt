@@ -145,6 +145,28 @@ class MediaStoreLatestProvider(
         }
     }
 
+    @Suppress("DEPRECATION")
+    override fun isNewestPicture(image: LatestImage): Boolean = try {
+        val q = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+        val uri = if (q) MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        var selection: String? = if (q) "${MediaStore.Images.Media.IS_PENDING} = 0" else null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) selection = (selection?.let { "$it AND " } ?: "") + "${MediaStore.Images.Media.IS_TRASHED} = 0"
+        val args = Bundle().apply {
+            selection?.let { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, it) }
+            putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(MediaStore.Images.Media.DATE_ADDED))
+            putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+            putInt(ContentResolver.QUERY_ARG_LIMIT, 2)
+        }
+        context.contentResolver.query(uri, arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATE_ADDED), args, null)?.use { c ->
+            val rows = ArrayList<Pair<Long, Long>>()
+            while (c.moveToNext() && rows.size < 2) rows += c.getLong(0) to c.getLong(1)
+            // Newest beyond doubt: it is our screenshot and the next one is strictly older (same-second ties are ambiguous).
+            rows.isNotEmpty() && rows[0].first == image.candidate.id && (rows.size < 2 || rows[1].second < rows[0].second)
+        } ?: false
+    } catch (e: Exception) {
+        false
+    }
+
     /** Copies the chosen image into private temporary storage (shared with WhatsApp through FileProvider). */
     override fun stage(image: LatestImage, settings: AutomationSettings, callback: (CaptureResult) -> Unit) {
         worker.execute {

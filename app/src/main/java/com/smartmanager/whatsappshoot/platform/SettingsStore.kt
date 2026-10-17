@@ -36,6 +36,7 @@ class SettingsStore(context: Context) {
             .putString("behavior", next.sendBehavior.name)
             .putString("folders", next.screenshotFolders.joinToString("|"))
             .putBoolean("fullAuto", next.fullyAutomaticSend)
+            .putBoolean("landingFirst", next.landingGalleryFirst)
             .apply()
         _flow.value = next
     }
@@ -57,6 +58,7 @@ class SettingsStore(context: Context) {
             sendBehavior = enumOf(prefs.getString("behavior", null), d.sendBehavior),
             screenshotFolders = prefs.getString("folders", null)?.split('|')?.filter { it.isNotBlank() }?.ifEmpty { null } ?: d.screenshotFolders,
             fullyAutomaticSend = prefs.getBoolean("fullAuto", d.fullyAutomaticSend),
+            landingGalleryFirst = prefs.getBoolean("landingFirst", d.landingGalleryFirst),
         )
     }
 

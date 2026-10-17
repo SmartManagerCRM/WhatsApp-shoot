@@ -406,7 +406,9 @@ class AutomationController(
         set(StatusMessage.PREPARING_ATTACHMENT)
         if (allowSend) {
             // Fully automatic: stay in the open chat and use WhatsApp's own attach menu (no recipient list, so no name matching).
-            attachEngine = AttachFlowEngine(baselineOutgoing, clock)
+            val landing = settings().landingGalleryFirst && shotImage?.let { latest.isNewestPicture(it) } == true
+            ActivityLog.add(if (landing) "screenshot is the newest picture: using the landing gallery" else "using the Screenshots album")
+            attachEngine = AttachFlowEngine(baselineOutgoing, clock, landing)
             shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
             ActivityLog.add("in-chat attach flow started")
             return

@@ -178,4 +178,35 @@ class LicenseAdminTest {
         assertTrue(phone.engine.activate(renewed) is ActivationResult.Success)
         assertEquals(1, (phone.engine.status() as ActivationStatus.Active).license.revision)
     }
+
+    @Test fun quickLicense_noRequestCode_activatesImmediately_andCanBeRenewedSuspendedAndReinstated() {
+        val f = out()
+        val r = run("issue", "--key", key, "--unbound", "--out", f, "--days", "30", "--ref", "quick-1", "--registry", registry, "--note", "Quick customer")
+        assertEquals(r.err, 0, r.code)
+        val id = Regex("WSS(-[0-9A-F]{4}){8}").find(r.out)!!.value
+        // a brand-new phone that never created any request code
+        val phone = Phone(pub) { nowSec }
+        assertNull(phone.keys.publicKeyX509())
+        assertTrue(phone.engine.activate(Files.readString(java.nio.file.Paths.get(f))) is ActivationResult.Success)
+        assertTrue(phone.engine.status() is ActivationStatus.Active)
+        // renew (no phone data needed)
+        val renew = out(); assertEquals(0, run("renew", "--registry", registry, "--key", key, "--id", id, "--out", renew, "--days", "30").code)
+        assertTrue(phone.engine.activate(Files.readString(java.nio.file.Paths.get(renew))) is ActivationResult.Success)
+        assertEquals(2, (phone.engine.status() as ActivationStatus.Active).license.revision)
+        // suspend, then reinstate
+        val stop = out(); assertEquals(0, run("suspend", "--registry", registry, "--key", key, "--id", id, "--out", stop).code)
+        phone.engine.activate(Files.readString(java.nio.file.Paths.get(stop)))
+        assertTrue(phone.engine.status() is ActivationStatus.Revoked)
+        val back = out(); assertEquals(0, run("reinstate", "--registry", registry, "--key", key, "--id", id, "--out", back).code)
+        phone.engine.activate(Files.readString(java.nio.file.Paths.get(back)))
+        assertTrue(phone.engine.status() is ActivationStatus.Active)
+    }
+
+    @Test fun quickLicense_isNotPhoneLocked_soEachCustomerShouldGetASubscription() {
+        val f = out(); assertEquals(0, run("issue", "--key", key, "--unbound", "--out", f, "--days", "30").code)
+        val token = Files.readString(java.nio.file.Paths.get(f))
+        // the same code activates on two different phones: this is the documented trade-off of skipping the request code
+        assertTrue(Phone(pub) { nowSec }.engine.activate(token) is ActivationResult.Success)
+        assertTrue(Phone(pub) { nowSec }.engine.activate(token) is ActivationResult.Success)
+    }
 }

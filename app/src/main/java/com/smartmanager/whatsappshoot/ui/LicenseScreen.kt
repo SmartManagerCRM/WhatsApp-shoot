@@ -58,6 +58,7 @@ fun LicenseScreen(graph: AppGraph) {
     var request by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var showEntry by rememberSaveable { mutableStateOf(false) }
+    var showRequest by rememberSaveable { mutableStateOf(false) }
 
     fun activate(text: String) {
         scope.launch {
@@ -126,24 +127,29 @@ fun LicenseScreen(graph: AppGraph) {
         }
 
         if (canEnter) {
-            SectionCard("1. Your activation request", "A license is made for one specific phone. Create the request and send it to the seller.") {
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        request = withContext(Dispatchers.Default) { graph.license.engine.requestCode() }
-                        if (request == null) { messageIsError = true; message = ctx.getString(R.string.license_err_keystore) }
+            // Normal licenses need no request: paste the code (or import the file) above. A phone-locked license is made only when the seller asks for this code.
+            SectionCard("Phone-locked license", "Only if the seller asks for it. Most licenses can be activated directly with the code above.") {
+                if (!showRequest) {
+                    TextButton(onClick = { showRequest = true }) { Text("The seller asked for an activation request") }
+                } else {
+                    OutlinedButton(onClick = {
+                        scope.launch {
+                            request = withContext(Dispatchers.Default) { graph.license.engine.requestCode() }
+                            if (request == null) { messageIsError = true; message = ctx.getString(R.string.license_err_keystore) }
+                        }
+                    }) { Text(if (request == null) "Create activation request" else "Create it again") }
+                    request?.let { code ->
+                        Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp)) {
+                            Text(code, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { clipboard.setText(AnnotatedString(code)) }) { Text("Copy") }
+                            OutlinedButton(onClick = {
+                                ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, code), "Send request").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }) { Text("Share") }
+                        }
+                        Text("The request holds only a public key for this installation. It is not secret.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                }) { Text(if (request == null) "Create activation request" else "Create it again") }
-                request?.let { code ->
-                    Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp)) {
-                        Text(code, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { clipboard.setText(AnnotatedString(code)) }) { Text("Copy") }
-                        OutlinedButton(onClick = {
-                            ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, code), "Send request").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        }) { Text("Share") }
-                    }
-                    Text("The request holds only a public key for this installation. It is not secret.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

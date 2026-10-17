@@ -50,7 +50,7 @@
     <string name="license_ok_activated">License activated. Thank you.</string>
     <string name="license_ok_stopped">The code was applied: this license is now stopped. Contact the seller.</string>
     <string name="license_ok_control_stored">The code was saved. It does not affect the license installed on this phone.</string>
-    <string name="license_not_activated_help">Enter the license you received from the seller. If you do not have one yet, create an activation request below and send it to the seller.</string>
+    <string name="license_not_activated_help">Paste the license code you received from the seller (or import the license file), then tap Activate.</string>
     <string name="license_err_revoked">This license (or this version of it) was stopped by the seller. Contact them for a new code.</string>
     <string name="license_err_superseded">A newer version of this license is already installed on this phone.</string>
     <string name="license_err_expired">This license has already ended. Ask the seller for a renewal code.</string>

@@ -12,7 +12,7 @@ This report separates three kinds of evidence. Nothing in the second or third co
 | **B. Compile check (PASSED)** | Android platform sources type-check against the real Android 34 API. Proves they compile, not that they behave. |
 | **C. Not run** | Gradle build, APK packaging, Compose UI compilation, emulator or physical-device behaviour. |
 
-## A. Automated JVM tests: 267 tests, 0 failures
+## A. Automated JVM tests: 269 tests, 0 failures
 
 Run with `scripts/run-jvm-tests.sh` (or `scripts/jvm-tests-quick.sh` in the authoring sandbox).
 

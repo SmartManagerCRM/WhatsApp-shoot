@@ -121,7 +121,7 @@ class LicenseGui {
         val key = field().apply { text = File("secrets/license-private.enc").path }
         val pw = pass()
         val request = JTextArea(3, 40).apply { lineWrap = true }
-        val unbound = JCheckBox("No request code (first-use license: can be activated on several phones)")
+        val unbound = JCheckBox("Quick license - no request code needed (recommended for sales; the code works on the first phone that uses it and could be shared; use subscriptions)", true)
         val ref = field(); val out = field(); val ledger = field().apply { text = File("secrets/issued-licenses.csv").path }
         val registry = field().apply { text = File(DEFAULT_REGISTRY).path }
         val note = field()
@@ -148,7 +148,7 @@ class LicenseGui {
         val ledRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply { add(ledger); add(browse(ledger, true)) }
         return form(emptyList(), listOf(
             "Private key file" to keyRow, "Passphrase" to pw,
-            "Customer's activation request code" to JScrollPane(request), "" to unbound,
+            "Activation request (only for a phone-locked license)" to JScrollPane(request), "" to unbound,
             "Order reference (no personal data)" to ref, "Customer / note (private, stays in your register)" to note,
             "Validity" to validity, "Register (all licenses)" to JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply { add(registry); add(browse(registry, true)) },
             "Save license as" to outRow, "Ledger (CSV)" to ledRow, "" to go,

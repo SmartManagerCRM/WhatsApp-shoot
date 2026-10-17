@@ -10,11 +10,9 @@ Videos and other files are never sent. Everything stays on your phone: the app h
 4. Open **Screenshot Assistant**.
 
 ## 2. Activate your license (once)
-A license works on **one phone**. To get yours:
-1. In the app open the **License** tab and tap **Create activation request**.
-2. Tap **Share** (or **Copy**) and send that code to the seller. (It only identifies this installation; it is not a password.)
-3. The seller sends you a license code starting with `WSS1.`. Copy it, open **License**, paste it and tap **Activate**.
-   The License tab then shows **License active**.
+1. The seller sends you your **license** - a long code starting with `WSS1.` (or a license file).
+2. Open the app, go to the **License** tab, **paste** the code (or tap **From file** and pick the file) and tap **Activate**.
+   The tab then shows **License active** - that is all.
 
 ## 3. Set it up (about 2 minutes)
 Open the **Home** tab. The checklist shows what is still needed - tap the button next to each item:
@@ -41,7 +39,7 @@ Then open **Settings**:
 
 ## 6. Good to know
 - **WhatsApp updates** can change its screens. If the app stops working after an update, tell the seller; an update of this app may be needed.
-- **New phone, reinstall or cleared app data:** you need a new activation request and a replacement license. Normal app updates keep your license.
+- **New phone, reinstall or cleared app data:** ask the seller for your license again and enter it as in step 2. Normal app updates keep your license.
 - **Subscriptions:** if your license has an end date, the License tab shows it. Before it ends the seller sends a **renewal code**: paste it under *License > Enter a code*. After the end date the app stops until you renew.
 - **Privacy:** no internet permission, no account, no analytics. Pictures are copied only temporarily inside the app and removed afterwards.
 - This app drives WhatsApp's own screens. WhatsApp's terms restrict automation of the service; use it for your own business needs and at your own responsibility.

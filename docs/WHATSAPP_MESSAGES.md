@@ -6,11 +6,10 @@ Screenshot Assistant sends your newest *photo* to any WhatsApp chat you open - a
 
 How it works:
 1️⃣ I send you the app file (APK) - install it on your Android phone
-2️⃣ You open *License* > *Create activation request* and send me the code
-3️⃣ I send back your license code - you paste it and it's active
+2️⃣ I send you your license code - you paste it under *License* > *Activate* and it's active
 
 Price: [PRICE] ([lifetime / per month]). [Free trial: 7 days.]
-Works on Android 8+ with WhatsApp / WhatsApp Business. The license is for one phone.
+Works on Android 8+ with WhatsApp / WhatsApp Business. One license per customer.
 Shall I send the file?
 
 ## 1b. الرسالة الأولى (عربي)
@@ -19,24 +18,23 @@ Screenshot Assistant يرسل أحدث *صورة* في هاتفك إلى أي م
 
 الخطوات:
 1️⃣ أرسل لك ملف التطبيق (APK) وتثبته على هاتف أندرويد
-2️⃣ تفتح *License* ثم *Create activation request* وترسل لي الكود
-3️⃣ أرسل لك كود الترخيص وتلصقه فيتفعّل
+2️⃣ أرسل لك كود الترخيص وتلصقه في *License* ثم *Activate* فيتفعّل
 
 السعر: [السعر] ([دائم / شهري]). [تجربة مجانية: 7 أيام.]
-يعمل على أندرويد 8 وما فوق مع واتساب / واتساب للأعمال. الترخيص لهاتف واحد.
+يعمل على أندرويد 8 وما فوق مع واتساب / واتساب للأعمال. ترخيص واحد لكل عميل.
 هل أرسل لك الملف؟
 
 ## 2. Sending the app (English)
 Here is the app file 👇 (ScreenshotAssistant-release.apk)
 1. Open it and tap *Install* (if Android asks, allow "Install unknown apps"; if Play Protect warns, tap *More details > Install anyway*).
-2. Open the app > *License* > *Create activation request* > *Share* and send me the code.
-I'll send your license right after. Full guide attached 📄
+2. Open the app and keep it ready - I'm sending your license code next, you paste it under *License* > *Activate*.
+Full guide attached 📄
 
 ## 2b. إرسال التطبيق (عربي)
 هذا ملف التطبيق 👇 (ScreenshotAssistant-release.apk)
 1. افتحه واضغط *تثبيت* (إذا طلب أندرويد اسمح بـ "تثبيت التطبيقات غير المعروفة"؛ وإذا ظهر تحذير Play Protect اضغط *مزيد من التفاصيل > التثبيت على أي حال*).
-2. افتح التطبيق > *License* > *Create activation request* > *Share* وأرسل لي الكود.
-وسأرسل لك الترخيص مباشرة بعدها. دليل الاستخدام مرفق 📄
+2. افتح التطبيق وأبقِه جاهزاً - سأرسل لك كود الترخيص الآن لتلصقه في *License* ثم *Activate*.
+دليل الاستخدام مرفق 📄
 
 ## 3. Sending the license (English)
 Thank you [NAME]! ✅ Your license code is below. Copy the whole line, open the app > *License*, paste it and tap *Activate*.

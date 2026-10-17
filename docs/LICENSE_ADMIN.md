@@ -3,6 +3,13 @@
 You, the seller, decide what every customer's license does: **renew**, **amend**, **suspend**, **cancel** or **reinstate** it. Everything runs offline in the License Manager
 (`java -jar dist/license-tool.jar`, tab **3. Customers & licenses**) or on the command line (`java -jar dist/license-tool.jar help`).
 
+## Quick licenses (default) vs phone-locked licenses
+- **Quick license (default, no request code):** you create the license and send the code (or file); the customer pastes it or imports the file and the app is active immediately.
+  In the License Manager this is the ticked box "Quick license" on tab 2; on the command line `issue ... --unbound`.
+  **Trade-off:** the code is not tied to a phone, so the same code could be activated on several phones (a customer could share it).
+  Use **subscriptions** (valid for N days) with quick licenses: sharing is then limited to the paid period, and you stop everyone by not renewing.
+- **Phone-locked license:** the customer sends the activation request (License tab > "The seller asked for an activation request"); you untick "Quick license" and paste it. The code then works only on that phone. Use it for lifetime sales.
+
 ## The one thing to understand: how control works without internet
 The app has no internet permission (a deliberate privacy promise), so it can never "phone home" to be switched off. Control therefore works in two ways:
 

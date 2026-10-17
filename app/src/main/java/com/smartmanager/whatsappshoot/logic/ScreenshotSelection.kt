@@ -49,14 +49,39 @@ interface ScreenshotSource {
     fun isDecodable(candidate: MediaCandidate): Boolean
 }
 
-/** Only direct children of a folder with one of the configured names qualify (case-insensitive, exact segment). */
+/**
+ * Only direct children of a configured folder qualify (case-insensitive). An entry is either a bare folder name ("Screenshots") or a
+ * path ("/storage/emulated/0/Pictures/Screenshots", "Pictures/Screenshots"): the storage prefix is ignored and the remaining
+ * segments must be the END of the image's folder, so a path pins the exact folder and a bare name matches the last segment.
+ */
 object ScreenshotFolderMatcher {
+    private fun segments(raw: String): List<String> = raw.trim().replace('\\', '/').split('/').map { it.trim() }.filter { it.isNotEmpty() }
+
+    private fun withoutStoragePrefix(seg: List<String>): List<String> {
+        var s = seg
+        if (s.firstOrNull().equals("storage", true)) {
+            s = s.drop(1)
+            if (s.firstOrNull().equals("emulated", true)) s = s.drop(2) else s = s.drop(1) // volume id (SD card)
+        } else if (s.firstOrNull().equals("sdcard", true)) s = s.drop(1)
+        return s
+    }
+
+    /** Normalised entries ("Screenshots" or "Pictures/Screenshots"); invalid ones are dropped. */
     fun cleanNames(names: Collection<String>): List<String> =
-        names.map { it.trim().trim('/') }.filter { it.isNotEmpty() && !it.contains('/') && !it.contains("..") }.distinct()
+        names.map { withoutStoragePrefix(segments(it)) }
+            .filter { it.isNotEmpty() && it.none { seg -> seg == ".." || seg == "." } }
+            .map { it.joinToString("/") }.distinct()
+
+    /** The last segment of each entry: the album name WhatsApp's own gallery shows, and a coarse database filter. */
+    fun leafNames(names: Collection<String>): List<String> = cleanNames(names).map { it.substringAfterLast('/') }.distinct()
 
     fun matches(folder: String?, names: Collection<String>): Boolean {
-        val last = folder?.split('/', '\\')?.filter { it.isNotEmpty() }?.lastOrNull() ?: return false
-        return cleanNames(names).any { it.equals(last, ignoreCase = true) }
+        val f = segments(folder ?: return false)
+        if (f.isEmpty()) return false
+        return cleanNames(names).any { spec ->
+            val sp = spec.split('/')
+            f.size >= sp.size && f.takeLast(sp.size).zip(sp).all { (x, y) -> x.equals(y, ignoreCase = true) }
+        }
     }
 }
 

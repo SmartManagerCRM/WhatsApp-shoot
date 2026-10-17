@@ -69,9 +69,9 @@ fun SettingsScreen(graph: AppGraph) {
         if (s.imageSource == ImageSource.LATEST_SCREENSHOT) {
             OutlinedTextField(
                 value = folders, onValueChange = { folders = it; upd { st -> st.copy(screenshotFolders = it.split(',').map { n -> n.trim() }.filter { n -> n.isNotEmpty() }.ifEmpty { listOf("Screenshots") }) } },
-                label = { Text("Screenshots folder name(s), comma separated") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text("Screenshots folder: name or full path (comma separated)") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
             )
-            Text("Only images directly inside a folder with one of these names are ever used.", style = MaterialTheme.typography.bodySmall)
+            Text("Example: /storage/emulated/0/Pictures/Screenshots. Only images directly inside that folder are used, and its last name (Screenshots) is the album the app opens in WhatsApp's gallery.", style = MaterialTheme.typography.bodySmall)
 
             Section("Automatic sending behavior")
             ChipRow(

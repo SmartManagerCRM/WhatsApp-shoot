@@ -17,6 +17,8 @@ data class AttachScreenView(
     /** A picture thumbnail is available to tap (camera tile excluded). */
     val thumbnail: Boolean = false,
     val sendButton: Boolean = false,
+    /** The picker can be scrolled further (the album may be below the visible part). */
+    val canScroll: Boolean = false,
     val outgoingMediaCount: Int? = null,
 )
 
@@ -27,6 +29,9 @@ sealed class AttachAction {
     object ClickAlbum : AttachAction()
     object ClickAlbumsSwitcher : AttachAction()
     object ClickThumbnail : AttachAction()
+
+    /** Scroll the gallery forward one page to reveal the album. */
+    object ScrollPicker : AttachAction()
 
     /** Only ever produced after the image was picked from the screenshots album, and never while the chat itself is in front. */
     object ClickSend : AttachAction()
@@ -57,6 +62,7 @@ class AttachFlowEngine(
     private var switcherClicked = false
     private var sendClicks = 0
     private var chatBackAt = -1L
+    private var scrolls = 0
 
     var note: String = ""
         private set
@@ -115,7 +121,9 @@ class AttachFlowEngine(
                 v.albumLabel -> { albumClicked = true; phaseSince = now; return click(AttachAction.ClickAlbum, now) }
                 v.albumsSwitcher && !switcherClicked -> { switcherClicked = true; return click(AttachAction.ClickAlbumsSwitcher, now) }
             }
-            return if (now - phaseSince > PICKER_PATIENCE_MS) finish(ShareOutcome.ABORT_NO_ALBUM) else AttachAction.Wait
+            // The album may simply be further down the gallery: look at the visible part first, then page through.
+            if (now - phaseSince > ALBUM_LOOK_MS && v.canScroll && scrolls < MAX_SCROLLS) { scrolls++; return click(AttachAction.ScrollPicker, now) }
+            return if (now - phaseSince > PICKER_PATIENCE_MS + scrolls * CLICK_GAP_MS) finish(ShareOutcome.ABORT_NO_ALBUM) else AttachAction.Wait
         }
         if (v.thumbnail) {
             go(Phase.AWAIT_SEND, now)
@@ -163,6 +171,8 @@ class AttachFlowEngine(
         const val OPEN_PATIENCE_MS = 6_000L
         const val MENU_PATIENCE_MS = 3_000L
         const val PICKER_PATIENCE_MS = 6_000L
+        const val ALBUM_LOOK_MS = 2_000L
+        const val MAX_SCROLLS = 6
         const val SEND_PATIENCE_MS = 6_000L
         const val RESULT_GRACE_MS = 3_000L
         const val SECOND_SEND_GAP_MS = 1_500L

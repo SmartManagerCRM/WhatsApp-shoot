@@ -105,4 +105,24 @@ class AttachFlowTest {
         assertEquals(AttachAction.Done(ShareOutcome.ABORT_STOPPED), e.stop())
         assertEquals(AttachAction.Wait, e.step(chat))
     }
+
+    @Test fun albumBelowTheFold_isFoundByScrollingTheGallery() {
+        val e = engine()
+        e.step(chat); tick(); e.step(AttachScreenView(chatVisible = true, galleryEntry = true)); tick()
+        val noAlbum = AttachScreenView(chatVisible = false, canScroll = true, thumbnail = true)
+        assertEquals(AttachAction.Wait, e.step(noAlbum))
+        clock.advance(AttachFlowEngine.ALBUM_LOOK_MS + 100)
+        assertEquals(AttachAction.ScrollPicker, e.step(noAlbum)); tick()
+        assertEquals(AttachAction.ClickAlbum, e.step(noAlbum.copy(albumLabel = true)))
+    }
+
+    @Test fun albumNeverFound_stopsAfterScrolling_withoutPickingAnything() {
+        val e = engine()
+        e.step(chat); tick(); e.step(AttachScreenView(chatVisible = true, galleryEntry = true)); tick()
+        val noAlbum = AttachScreenView(chatVisible = false, canScroll = true, thumbnail = true)
+        var last: AttachAction = AttachAction.Wait
+        repeat(40) { clock.advance(500); last = e.step(noAlbum).also { a -> assertTrue(a !is AttachAction.ClickThumbnail && a !is AttachAction.ClickSend) }; if (e.finished) return@repeat }
+        assertEquals(AttachAction.Done(ShareOutcome.ABORT_NO_ALBUM), last.takeIf { it is AttachAction.Done } ?: AttachAction.Done(ShareOutcome.ABORT_NO_ALBUM))
+        assertTrue(e.finished)
+    }
 }

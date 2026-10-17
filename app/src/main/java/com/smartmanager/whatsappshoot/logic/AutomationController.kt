@@ -448,7 +448,7 @@ class AutomationController(
     val attachFlowActive: Boolean get() = attachEngine != null && machine.state == AutomationState.PREPARING_ATTACHMENT
 
     /** Folder names shown as albums in WhatsApp's gallery. */
-    fun albumNames(): List<String> = settings().screenshotFolders
+    fun albumNames(): List<String> = ScreenshotFolderMatcher.leafNames(settings().screenshotFolders)
 
     fun attachStep(view: AttachScreenView): AttachAction? {
         val e = attachEngine ?: return null

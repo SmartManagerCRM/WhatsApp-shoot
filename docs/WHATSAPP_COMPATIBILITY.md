@@ -52,3 +52,10 @@ so no name matching is needed. Rules enforced by `AttachFlowEngine` (unit-tested
 **Not verified on a real phone yet.** The labels it looks for (attach button, Gallery, Screenshots/Albums, Send) are matched by view id, accessibility
 label or text in common languages; WhatsApp versions differ. If a step is not found the run stops with a specific message and the Home screen's
 *Copy diagnostics* shows the last step reached. Manual mode (no opt-in) still opens WhatsApp's share sheet.
+
+### v1.0.5: screenshots folder as a path, album search
+Real-phone result for 1.0.4: the app opened WhatsApp's gallery but did not find the Screenshots album. Changes:
+- Settings accepts a folder **path** (e.g. `/storage/emulated/0/Pictures/Screenshots`) as well as a bare name. A path pins the exact folder for the app's own lookup;
+  its last segment is the album name the app looks for in WhatsApp's gallery. (WhatsApp's picker lists albums by name, so a path cannot be handed to it directly.)
+- Album labels are now also read from content descriptions of any node, and the gallery is scrolled (up to 6 pages) to reveal the album.
+- When the album is not found, the activity log lists the labels seen in the gallery ("picker labels: ..."; gallery album names only), so the matching can be corrected.

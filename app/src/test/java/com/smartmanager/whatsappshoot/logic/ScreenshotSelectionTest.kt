@@ -114,4 +114,15 @@ class ScreenshotSelectionTest {
         src.add(3, bytes = byteArrayOf(1), c = cand(3, clock, ageMs = 10_000))
         assertNotEquals(first, found(latest()).key)
     }
+
+    @Test fun fullPathEntries_pinTheFolder_andGiveTheAlbumName() {
+        val p = listOf("/storage/emulated/0/Pictures/Screenshots")
+        assertEquals(listOf("Pictures/Screenshots"), ScreenshotFolderMatcher.cleanNames(p))
+        assertEquals(listOf("Screenshots"), ScreenshotFolderMatcher.leafNames(p))
+        assertTrue(ScreenshotFolderMatcher.matches("Pictures/Screenshots/", p))
+        assertFalse("same name in another parent is a different folder", ScreenshotFolderMatcher.matches("DCIM/Screenshots/", p))
+        assertTrue(ScreenshotFolderMatcher.matches("/storage/emulated/0/Pictures/Screenshots", p))
+        assertEquals(listOf("DCIM/Screenshots"), ScreenshotFolderMatcher.cleanNames(listOf("/sdcard/DCIM/Screenshots/")))
+        assertEquals(listOf("Screenshots"), ScreenshotFolderMatcher.cleanNames(listOf("Screenshots")))
+    }
 }

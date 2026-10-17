@@ -127,6 +127,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         var sendNode: AccessibilityNodeInfo? = null,
         var outgoing: Int = 0,
         val texts: ArrayList<Pair<String, AccessibilityNodeInfo>> = ArrayList(),
+        /** Text or content description of any visible node (album names are not always TextViews). */
+        val labels: ArrayList<Pair<String, AccessibilityNodeInfo>> = ArrayList(),
         var scrollNode: AccessibilityNodeInfo? = null,
         var scrollArea: Long = 0,
         val clicks: ArrayList<ClickInfo> = ArrayList(),
@@ -156,6 +158,10 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             if (n.isEditable) r.editable = true
             if (retain && n.isVisibleToUser) {
                 if (hasText && cls != null && cls.endsWith("TextView") && r.texts.size < MAX_TEXTS) r.texts += n.text.toString() to n
+                if (r.labels.size < MAX_TEXTS) {
+                    val l = n.text?.toString()?.takeIf { it.isNotBlank() } ?: n.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+                    if (l != null) r.labels += l to n
+                }
                 if (n.isScrollable && rect.width().toLong() * rect.height() > r.scrollArea) { r.scrollNode = n; r.scrollArea = rect.width().toLong() * rect.height() }
                 if (n.isClickable && n.isEnabled && r.clicks.size < MAX_CLICKS) r.clicks += ClickInfo(n, n.contentDescription?.toString(), cls, rect, short)
             }
@@ -273,6 +279,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     // ---- share flow (select chat / optional Send), driven by the tested ShareFlowEngine ----
 
     private var lastDriveTrace = ""
+    private var lastLabels = ""
 
     private fun driveShareFlow(pkg: String) {
         val c = graph.controller
@@ -363,9 +370,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             ?: sc.texts.firstOrNull { t -> lc(t.first).let { it in GALLERY_WORDS } }?.second
             ?: sc.clicks.firstOrNull { ci -> lc(ci.desc).let { it in GALLERY_WORDS } }?.node
         val names = c.albumNames().map { lc(it) } + (if (c.albumNames().any { lc(it) == "screenshots" }) SCREENSHOT_WORDS else emptyList())
-        val album = if (chatVisible) null else sc.texts.firstOrNull { t -> lc(t.first).let { x -> x.isNotEmpty() && names.any { n -> x == n || (x.contains(n) && x.length <= n.length + 14) } } }?.second
-        val switcher = if (chatVisible) null else
-            sc.texts.firstOrNull { t -> lc(t.first) in ALBUM_SWITCH_WORDS }?.second ?: sc.clicks.firstOrNull { ci -> lc(ci.desc) in ALBUM_SWITCH_WORDS }?.node
+        val album = if (chatVisible) null else sc.labels.firstOrNull { t -> lc(t.first).let { x -> x.isNotEmpty() && names.any { n -> x == n || (x.contains(n) && x.length <= n.length + 14) } } }?.second
+        val switcher = if (chatVisible) null else sc.labels.firstOrNull { t -> lc(t.first) in ALBUM_SWITCH_WORDS }?.second
         val thumb = if (chatVisible) null else sc.clicks.filter { ci ->
             ci.rect.width() in (w * 0.15).toInt()..(w * 0.6).toInt() && ci.rect.height() in (ci.rect.width() * 0.6).toInt()..(ci.rect.width() * 1.7).toInt() &&
                 ci.rect.top >= h * 0.12 && lc(ci.desc).let { d -> CAMERA_WORDS.none { d.contains(it) } } &&
@@ -376,8 +382,13 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val view = com.smartmanager.whatsappshoot.logic.AttachScreenView(
             chatVisible = chatVisible, attachButton = attach != null, galleryEntry = gallery != null,
             albumLabel = album != null, albumsSwitcher = switcher != null, thumbnail = thumb != null,
-            sendButton = send != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null,
+            sendButton = send != null, canScroll = sc.scrollNode != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null,
         )
+        if (!chatVisible && album == null) {
+            // Gallery/album names only (this is WhatsApp's media picker, not a conversation): helps to see how an album is labelled.
+            val seen = sc.labels.map { it.first.trim() }.filter { it.length in 2..28 }.distinct().take(24).joinToString(" | ")
+            if (seen.isNotEmpty() && seen != lastLabels) { lastLabels = seen; ActivityLog.add("picker labels: $seen") }
+        }
         val trace = "screen: class=${lastWindowClass ?: "?"} chat=$chatVisible editable=${sc.editable} send=${send?.second ?: "none"}"
         if (trace != lastDriveTrace) { ActivityLog.add(trace); lastDriveTrace = trace }
         val a = c.attachStep(view) ?: return
@@ -387,13 +398,14 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbum -> clickAncestor(album)
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbumsSwitcher -> clickAncestor(switcher)
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickThumbnail -> clickAncestor(thumb)
+            com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker -> sc.scrollNode?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
             // The only place WhatsApp's Send button is tapped: opt-in setting, verified chat, picture chosen from the screenshots album.
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickSend -> clickAncestor(send?.first)
             else -> null
         }
         if (ok != null) {
             ActivityLog.add("clicked ${a::class.simpleName}: $ok")
-            if (!ok) c.attachClickFailed(a)
+            if (!ok && a != com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker) c.attachClickFailed(a)
         }
     }
 

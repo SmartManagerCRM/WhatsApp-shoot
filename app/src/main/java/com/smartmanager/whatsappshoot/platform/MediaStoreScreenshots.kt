@@ -20,6 +20,7 @@ import com.smartmanager.whatsappshoot.logic.FailureReason
 import com.smartmanager.whatsappshoot.logic.ImageFormat
 import com.smartmanager.whatsappshoot.logic.ImageFormats
 import com.smartmanager.whatsappshoot.logic.LatestImage
+import com.smartmanager.whatsappshoot.logic.ScreenshotFolderMatcher
 import com.smartmanager.whatsappshoot.logic.LatestScreenshotProvider
 import com.smartmanager.whatsappshoot.logic.MediaAccess
 import com.smartmanager.whatsappshoot.logic.MediaCandidate
@@ -68,8 +69,10 @@ class MediaStoreScreenshotSource(private val context: Context) : ScreenshotSourc
 
         // Coarse SQL filter; the selector re-checks the exact folder segment on every row.
         val pathCol = if (q) MediaStore.Images.Media.RELATIVE_PATH else MediaStore.Images.Media.DATA
-        val like = folders.joinToString(" OR ") { "$pathCol LIKE ?" }
-        val args = folders.map { if (q) "%$it/" else "%/$it/%" }
+        val leaves = ScreenshotFolderMatcher.leafNames(folders)
+        if (leaves.isEmpty()) return emptyList()
+        val like = leaves.joinToString(" OR ") { "$pathCol LIKE ?" }
+        val args = leaves.map { if (q) "%$it/" else "%/$it/%" }
         var selection = "($like)"
         if (q) selection += " AND ${MediaStore.Images.Media.IS_PENDING} = 0"
         val out = ArrayList<MediaCandidate>()

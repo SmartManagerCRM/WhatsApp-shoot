@@ -56,3 +56,10 @@ Strict one-device enforcement is **not** guaranteed and cannot be offline. Mitig
 Normal signed updates preserve the activation as long as `applicationId` and the signing certificate stay the same. Never change `applicationId`
 (it would create a new app with a new, empty Keystore) and never change the signing key (Android would refuse the update). Activation record version `rv=1`
 and licence version `v=1` are explicit; a future format change must keep reading version 1.
+
+## v1.2.2: the stored license survives a lost Keystore key
+Some phones silently lose Android Keystore entries (system updates, security patches, lock-screen changes). Before 1.2.2 that made the app report
+"installation key missing" and ask for the license again at every start. Now a **first-use license (the default, no phone named in it)** stays active as long as the
+stored activation record itself is intact (token signature and record signature are still verified; a damaged record is still detected). This does not weaken
+anything that was protected before: the same code can be activated on any phone anyway (see Known limitations). **Phone-locked licenses** (`--request`) stay strict:
+without their Keystore key they report "installation key missing". The diagnostics line `license:` shows `installation key not found; stored license kept` when this happened.

@@ -52,19 +52,19 @@ class ActivationEngineTest {
         assertNull(fresh.keys.publicKeyX509()) // failed activation has no side effects
     }
 
-    @Test fun apkAndActivationRecordCopiedToAnotherInstallation_isRejected() {
+    @Test fun recordCopiedToAnotherInstallation_firstUseLicense_isAccepted_asItsCodeWouldBe() {
         val original = phone(); original.engine.activate(vendor.token())
         val clone = phone()                                   // own (different) Keystore, no key for the record
         for (s in 0 until ActivationStore.SLOTS) clone.store.write(s, original.store.read(s)!!)
-        assertEquals(ActivationStatus.InstallKeyMissing, clone.engine.status())
-        clone.keys.ensureKey()                                // attacker creates own key: still mismatched
-        assertEquals(ActivationStatus.InstallKeyMissing, clone.engine.status())
+        assertTrue(clone.engine.status() is ActivationStatus.Active)
+        clone.keys.ensureKey()                                // own key, different from the recorded one: still accepted (no phone named in the license)
+        assertTrue(clone.engine.status() is ActivationStatus.Active)
     }
 
-    @Test fun missingInstallationKey_afterReinstallOrKeystoreWipe() {
+    @Test fun missingInstallationKey_firstUseLicense_staysActive() {
         val p = phone(); p.engine.activate(vendor.token())
         p.keys.deleteKey()
-        assertEquals(ActivationStatus.InstallKeyMissing, p.engine.status())
+        assertTrue(p.engine.status() is ActivationStatus.Active)
     }
 
     @Test fun reinstall_losesBothKeyAndRecord_needsReactivation() {
@@ -155,11 +155,11 @@ class ActivationEngineTest {
         assertEquals("key present, signing unavailable", p.engine.lastDetail)
     }
 
-    @Test fun stillRejectsACopiedRecord_evenIfSigningIsUnavailable() {
+    @Test fun copiedRecord_firstUseLicense_withSigningUnavailable_staysActive() {
         val original = phone(); original.engine.activate(vendor.token())
         val clone = phone()
         for (s in 0 until ActivationStore.SLOTS) clone.store.write(s, original.store.read(s)!!)
         clone.keys.ensureKey(); clone.keys.signFailures = Int.MAX_VALUE
-        assertEquals(ActivationStatus.InstallKeyMissing, clone.engine.status())
+        assertTrue(clone.engine.status() is ActivationStatus.Active)
     }
 }

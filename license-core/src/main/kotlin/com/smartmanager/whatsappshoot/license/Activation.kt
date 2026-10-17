@@ -248,8 +248,18 @@ class ActivationEngine(
         var current = keys.publicKeyX509()
         var lookups = 0
         while (current == null && lookups < SIGN_RETRIES) { pause(SIGN_RETRY_PAUSE_MS); current = keys.publicKeyX509(); lookups++ } // Keystore can be briefly unreadable
-        if (current == null) { lastDetail = "installation key not found"; return ActivationStatus.InstallKeyMissing }
-        if (!current.contentEquals(recordPub)) { lastDetail = "installation key differs from the recorded one"; return ActivationStatus.InstallKeyMissing }
+        // A license that names no phone (first-use policy) is not tied to the key by its signature, and its code can be activated on any phone anyway (documented limitation).
+        // Some phones lose Keystore entries (updates, security patches, lock-screen changes): that must not make a paying customer enter the code again.
+        // The stored record still has to be intact (verified above). Phone-locked licenses stay strict.
+        val keyIsOptional = license.bind == null
+        if (current == null) {
+            lastDetail = "installation key not found"
+            return if (keyIsOptional) { lastDetail = "installation key not found; stored license kept"; ActivationStatus.Active(license) } else ActivationStatus.InstallKeyMissing
+        }
+        if (!current.contentEquals(recordPub)) {
+            lastDetail = "installation key differs from the recorded one"
+            return if (keyIsOptional) { lastDetail = "installation key differs; stored license kept"; ActivationStatus.Active(license) } else ActivationStatus.InstallKeyMissing
+        }
         val nonce = ByteArray(32).also { random.nextBytes(it) }
         val challenge = LicenseFormat.CHALLENGE_DOMAIN.toByteArray(Charsets.UTF_8) + nonce
         // The Keystore can be briefly unavailable (device just booted, system busy): retry before drawing any conclusion.
@@ -262,7 +272,10 @@ class ActivationEngine(
             lastDetail = "key present, signing unavailable"
             return ActivationStatus.Active(license)
         }
-        if (!verifySig(recordKey, challenge, proof)) { lastDetail = "possession proof failed"; return ActivationStatus.InstallKeyMissing }
+        if (!verifySig(recordKey, challenge, proof)) {
+            lastDetail = "possession proof failed"
+            return if (keyIsOptional) ActivationStatus.Active(license) else ActivationStatus.InstallKeyMissing
+        }
         return ActivationStatus.Active(license)
     }
 

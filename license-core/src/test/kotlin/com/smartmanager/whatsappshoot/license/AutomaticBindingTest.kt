@@ -64,25 +64,37 @@ class AutomaticBindingTest {
         assertTrue(first.engine.status() is ActivationStatus.Active); assertTrue(second.engine.status() is ActivationStatus.Active)
     }
 
-    @Test fun copiedActivationRecord_doesNotWorkOnAnotherPhone() {
+    @Test fun copiedActivationRecord_ofAFirstUseLicense_works_sameAsEnteringTheCopiedCode_documentedLimitation() {
         val original = phone(); original.engine.activate(license())
         val clone = phone(); clone.engine.prepareInstallation()
         for (s in 0 until ActivationStore.SLOTS) clone.store.write(s, original.store.read(s)!!)
-        assertEquals(ActivationStatus.InstallKeyMissing, clone.engine.status())          // its Keystore key is a different one
-        // recovery on that phone: enter the license code again (binds to ITS key)
-        assertTrue(clone.engine.activate(license()) is ActivationResult.Success)
+        // The same code can be activated on any phone anyway (see copiedLicenseCode_canBeActivatedOnASecondPhone), so the record is not refused.
         assertTrue(clone.engine.status() is ActivationStatus.Active)
     }
 
-    @Test fun missingKey_afterReinstallOrKeystoreWipe_isReportedClearly_andRecoveredByEnteringTheLicenseAgain() {
+    @Test fun keystoreEntryLost_doesNotMakeTheCustomerEnterTheLicenseAgain() {
         val code = license()
         val p = phone(); p.engine.activate(code)
-        p.keys.deleteKey()                                                                  // Keystore entry gone, record still stored
-        assertEquals(ActivationStatus.InstallKeyMissing, p.engine.status())
-        assertTrue(p.engine.prepareInstallation())                                          // next launch creates a new installation key
-        assertEquals(ActivationStatus.InstallKeyMissing, p.engine.status())                 // old record does not match the new key
-        assertTrue(p.engine.activate(code) is ActivationResult.Success)                     // recovery: enter the license again
+        p.keys.deleteKey()                                                                  // Keystore entry gone (OEM wipe, update ...), record still stored
         assertTrue(p.engine.status() is ActivationStatus.Active)
+        assertTrue(p.engine.prepareInstallation())                                          // next launch creates a new installation key
+        assertTrue(p.engine.status() is ActivationStatus.Active)                            // old record names the old key: still accepted
+    }
+
+    @Test fun storedRecordDamaged_afterKeystoreLoss_isStillDetected() {
+        val p = phone(); p.engine.activate(license())
+        p.keys.deleteKey()
+        for (s in 0 until ActivationStore.SLOTS) p.store.write(s, p.store.read(s)!!.replace("at=", "at=9"))
+        assertEquals(ActivationStatus.RecordCorrupt, p.engine.status())
+    }
+
+    @Test fun phoneLockedLicense_staysStrict_whenTheKeyIsMissing() {
+        val p = phone(); p.engine.prepareInstallation()
+        val fp = LicenseFormat.installFingerprint(p.keys.publicKeyX509()!!)
+        val locked = vendor.token(vendor.payload(LicenseFormat.POLICY_DEVICE_BOUND, bind = fp, revision = 1))
+        assertTrue(p.engine.activate(locked) is ActivationResult.Success)
+        p.keys.deleteKey()
+        assertEquals(ActivationStatus.InstallKeyMissing, p.engine.status())
     }
 
     @Test fun corruptedActivationData_isDetected_oneBadSlotIsTolerated() {

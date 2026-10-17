@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.smartmanager.whatsappshoot.R
 import com.smartmanager.whatsappshoot.license.ActivationStatus
+import com.smartmanager.whatsappshoot.logic.ActivityLog
 import com.smartmanager.whatsappshoot.logic.AutomationState
 import com.smartmanager.whatsappshoot.logic.ImageSource
 import com.smartmanager.whatsappshoot.logic.MediaAccess
@@ -57,7 +58,7 @@ import kotlinx.coroutines.withContext
 private const val COUNTDOWN_SECONDS = 5
 
 @Composable
-fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
+fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Unit) {
     val ctx = LocalContext.current
     val v by graph.ui.collectAsStateWithLifecycle()
     val license by graph.license.status.collectAsStateWithLifecycle()
@@ -71,12 +72,14 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
     var captureOn by remember { mutableStateOf(graph.captureReady()) }
     var notificationsOn by remember { mutableStateOf(notificationsAllowed(ctx)) }
     var media by remember { mutableStateOf(graph.mediaAccess()) }
+    var recent by remember { mutableStateOf(ActivityLog.last(8)) }
     LaunchedEffect(Unit) {
         while (true) {
             accessibilityOn = graph.accessibilityEnabled
             captureOn = graph.captureReady()
             notificationsOn = notificationsAllowed(ctx)
             media = graph.mediaAccess()
+            recent = ActivityLog.last(8)
             delay(1000)
         }
     }
@@ -104,6 +107,19 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(if (active) (if (v.paused) "Paused" else "Automation active") else "Automation stopped", style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(StatusStrings.res(v.message)))
+            }
+        }
+
+        // --- How sending works right now (the automatic mode is a separate, explicit switch) ---
+        if (latestMode) {
+            if (settings.fullyAutomaticSend) {
+                Text("Sending mode: fully automatic (ON). The app chooses the chat in WhatsApp and presses Send itself when everything matches.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                InfoCard(
+                    "Sending mode: you press Send",
+                    "The app opens WhatsApp's share screen with your latest screenshot; you choose the chat and press Send. " +
+                        "To let the app choose the chat and press Send by itself, turn on \"Fully automatic sending\" in Settings.",
+                ) { OutlinedButton(onClick = openSettings) { Text("Open Settings") } }
             }
         }
 
@@ -173,21 +189,25 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
         StatusRow("License", if (licensed) "Activated (lifetime)" else "Not activated")
         if (lastScreen.isNotEmpty()) Text("Last WhatsApp screen seen: $lastScreen", style = MaterialTheme.typography.bodySmall)
 
-        // --- Diagnostics: helps fix WhatsApp screen recognition without a PC. Contains no message text. ---
+        // --- Recent activity + diagnostics: helps find problems without a PC. Contains no message text, names or numbers. ---
+        if (recent.isNotEmpty()) {
+            Text("Recent activity", style = MaterialTheme.typography.titleSmall)
+            recent.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+        }
         Text("Diagnostics", style = MaterialTheme.typography.titleSmall)
         Text(
-            "If WhatsApp is not recognised: with automation running, open a chat, the chat list and the share list in WhatsApp, come back here and copy the report. " +
-                "It lists technical screen identifiers only, never message text, names or numbers.",
+            "If something does not work: reproduce it (open a chat, wait for the app to act), come back here and copy the diagnostics. " +
+                "It contains technical steps and screen identifiers only, never message text, names or numbers.",
             style = MaterialTheme.typography.bodySmall,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { clipboard.setText(AnnotatedString(ScreenReports.text(ctx))) }) { Text("Copy screen report") }
+            OutlinedButton(onClick = { clipboard.setText(AnnotatedString(diagnosticsText(ctx))) }) { Text("Copy diagnostics") }
             OutlinedButton(onClick = {
                 ctx.startActivity(
-                    Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, ScreenReports.text(ctx)), "Share report")
+                    Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, diagnosticsText(ctx)), "Share diagnostics")
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
-            }) { Text("Share report") }
+            }) { Text("Share") }
         }
 
         // --- Manual confirmation ---
@@ -208,12 +228,16 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit) {
             Text("Screenshot preview", style = MaterialTheme.typography.titleMedium)
             Preview(shot)
             Text("${shot.widthPx} x ${shot.heightPx} px, ${shot.format.name}", style = MaterialTheme.typography.bodySmall)
-            Text("Attaching opens WhatsApp's share screen. You choose the chat and press Send yourself; this app never sends anything.", style = MaterialTheme.typography.bodySmall)
+            Text(
+                if (settings.fullyAutomaticSend && latestMode) "Automatic sending is ON: the app tries to choose the chat and press Send. If anything does not match, it stops and nothing is sent."
+                else "Attaching opens WhatsApp's share screen. You choose the chat and press Send yourself.",
+                style = MaterialTheme.typography.bodySmall,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { c.requestAttach() }, enabled = v.state != AutomationState.PREPARING_ATTACHMENT && v.state != AutomationState.CAPTURING_SCREEN) { Text("Attach to WhatsApp") }
                 OutlinedButton(onClick = { c.deleteScreenshot() }) { Text("Delete") }
-                OutlinedButton(onClick = { c.dismiss() }) { Text("Done") }
             }
+            OutlinedButton(onClick = { c.dismiss() }) { Text("Done") }
         }
     }
 }
@@ -258,6 +282,9 @@ fun StatusRow(label: String, value: String) {
         Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
     }
 }
+
+private fun diagnosticsText(ctx: android.content.Context): String =
+    ScreenReports.text(ctx) + "\n--- activity log (newest last) ---\n" + ActivityLog.text() + "\n"
 
 private fun notificationsAllowed(ctx: android.content.Context): Boolean =
     Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

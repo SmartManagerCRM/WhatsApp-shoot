@@ -18,3 +18,7 @@
 - Licence data: licence token (no personal data) and an installation public key, in private app storage; the private key never leaves the Android Keystore. Licensing code has no access to screenshots.
 - Sent-status ledger: opaque keyed hashes of (chat, image content) with timestamps, in private preferences, capped at 500 entries; reset buttons clear it. No names, no message text.
 - Backups are disabled. The app does not send messages and does not capture unless the user started a session. Stopping removes the notification and floating button and cancels pending captures.
+
+## Diagnostics (added in 1.0.2)
+The Home screen can copy an in-memory diagnostics text (recent steps, screen structure). It contains view-id names, view classes, yes/no flags and counts, never message text, names or numbers. It is not stored or sent; you copy and share it yourself.
+During fully automatic sending the app reads the visible names in WhatsApp's share list and send screen to find and verify the chat; they are compared as hashes in memory and discarded.

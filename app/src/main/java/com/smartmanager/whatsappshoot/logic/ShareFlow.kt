@@ -13,6 +13,11 @@ data class ShareScreenView(
     val conversationHeader: String? = null,
     /** Number of outgoing media messages visible in the conversation (evidence of sending). */
     val outgoingMediaCount: Int? = null,
+    /**
+     * Every piece of text currently visible on the screen. Used only to look for the verified chat's name (as a hash) when WhatsApp's
+     * recipient label cannot be located by id. Never stored or logged.
+     */
+    val visibleTexts: List<String?> = emptyList(),
 )
 
 sealed class ShareAction {
@@ -57,6 +62,7 @@ class ShareFlowEngine(
 
     private var phase = Phase.PICK_ROW
     private var sendClicked = false
+    private var previewMisses = 0
     var finished = false
         private set
 
@@ -92,9 +98,15 @@ class ShareFlowEngine(
     private fun preview(v: ShareScreenView): ShareAction {
         if (v.stage == ShareStage.SHARE_LIST) return ShareAction.Wait // list still animating away
         if (v.stage != ShareStage.SHARE_PREVIEW) return ShareAction.Wait
-        val recipient = hasher.identityOf(v.previewRecipient)
-        if (!recipient.isKnown) return finish(ShareOutcome.ABORT_RECIPIENT_UNVERIFIED)
-        if (expected == null || !expected.matches(recipient)) return finish(ShareOutcome.ABORT_RECIPIENT_MISMATCH)
+        if (expected == null || !expected.isKnown) return finish(ShareOutcome.ABORT_RECIPIENT_UNVERIFIED)
+        if (!v.previewRecipient.isNullOrBlank()) {
+            // WhatsApp's own recipient label was found: it must be exactly the verified chat.
+            if (!expected.matches(hasher.identityOf(v.previewRecipient))) return finish(ShareOutcome.ABORT_RECIPIENT_MISMATCH)
+        } else if (v.visibleTexts.none { expected.matches(hasher.identityOf(it)) }) {
+            // No recipient label found: the chat's name must at least appear on the screen. Names can render a moment late, so allow a few looks.
+            previewMisses++
+            return if (previewMisses >= PREVIEW_PATIENCE) finish(ShareOutcome.ABORT_RECIPIENT_UNVERIFIED) else ShareAction.Wait
+        }
         if (!v.sendButtonAvailable) return ShareAction.Wait
         sendClicked = true
         phase = Phase.AWAIT_RESULT
@@ -109,6 +121,10 @@ class ShareFlowEngine(
             return finish(if (confirmed) ShareOutcome.SENT_CONFIRMED else ShareOutcome.SENT_UNCONFIRMED)
         }
         return finish(ShareOutcome.SENT_UNCONFIRMED)
+    }
+
+    companion object {
+        const val PREVIEW_PATIENCE = 3
     }
 
     private fun finish(o: ShareOutcome): ShareAction.Done {

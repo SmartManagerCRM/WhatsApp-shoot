@@ -42,8 +42,37 @@ class AutomationController(
     private var baselineOutgoing: Int? = null
     private var shareEngine: ShareFlowEngine? = null
     private var shareTimeout: Cancellable? = null
+    private var captureEpoch = 0
+    private var captureWatchdog: Cancellable? = null
+    private var lastShareTrace = ""
 
     var onChange: (() -> Unit)? = null
+
+    init {
+        machine.listener = { from, to, event -> ActivityLog.add("state $from -> $to ($event)") }
+    }
+
+    /** Arms a timer so a lookup/capture that never reports back cannot leave the app stuck. Returns the token its callbacks must carry. */
+    private fun armWatchdog(): Int {
+        val e = ++captureEpoch
+        captureWatchdog?.cancel()
+        captureWatchdog = scheduler.schedule(CAPTURE_TIMEOUT_MS) {
+            if (e == captureEpoch && machine.state == AutomationState.CAPTURING_SCREEN) {
+                captureEpoch++
+                ActivityLog.add("watchdog: lookup/capture did not finish in ${CAPTURE_TIMEOUT_MS / 1000}s")
+                guard.finish()
+                fail(StatusMessage.CAPTURE_FAILED)
+            }
+        }
+        return e
+    }
+
+    private fun disarmWatchdog() {
+        captureWatchdog?.cancel(); captureWatchdog = null
+    }
+
+    /** True if [text] (e.g. a title seen on screen) is the verified chat. Used by the accessibility layer to tell the chat from share screens. */
+    fun expectedTitleMatches(text: String?): Boolean = shotIdentity?.matches(hasher.identityOf(text)) == true
 
     val view: ControllerState
         get() = ControllerState(machine.state, machine.paused, message, screenshot, conversationType)
@@ -63,6 +92,7 @@ class AutomationController(
     }
 
     fun stop() {
+        captureEpoch++; disarmWatchdog()
         cancelPending()
         shareEngine = null // emergency stop: nothing further is clicked
         machine.dispatch(AutomationEvent.STOP)
@@ -191,7 +221,11 @@ class AutomationController(
             return false
         }
         set(StatusMessage.PREPARING_SCREENSHOT)
-        engine.capture(settings()) { handleCaptureResult(it) }
+        val epoch = armWatchdog()
+        engine.capture(settings()) { r ->
+            if (epoch != captureEpoch) { (r as? CaptureResult.Saved)?.let { repository.delete(it.shot) }; return@capture } // timed out or stopped
+            disarmWatchdog(); handleCaptureResult(r)
+        }
         return true
     }
 
@@ -250,17 +284,20 @@ class AutomationController(
             return false
         }
         set(StatusMessage.LOOKING_FOR_SCREENSHOT)
-        latest.find(settings()) { handleSelection(it, userInitiated) }
+        val epoch = armWatchdog()
+        latest.find(settings()) { if (epoch == captureEpoch) handleSelection(it, userInitiated, epoch) }
         return true
     }
 
     private fun skipWith(m: StatusMessage) {
+        disarmWatchdog()
         guard.finish()
         machine.dispatch(AutomationEvent.CAPTURE_SKIPPED)
         set(m)
     }
 
-    private fun handleSelection(r: SelectionResult, userInitiated: Boolean) {
+    private fun handleSelection(r: SelectionResult, userInitiated: Boolean, epoch: Int) {
+        ActivityLog.add("lookup result: ${r::class.simpleName}" + ((r as? SelectionResult.Found)?.let { " (skippedNewer=${it.image.skippedNewer})" } ?: ""))
         if (machine.state != AutomationState.CAPTURING_SCREEN) { guard.finish(); return } // stopped meanwhile
         when (r) {
             is SelectionResult.Found -> {
@@ -273,8 +310,8 @@ class AutomationController(
                         SkipReason.SAME_IMAGE_ALREADY_HANDLED -> StatusMessage.SAME_IMAGE_HANDLED
                         SkipReason.NOT_NEWER -> StatusMessage.NOT_NEWER
                     })
-                    is SendDecision.NeedManual -> stageLatest(image, forceManual = StatusMessage.IDENTITY_UNRELIABLE)
-                    SendDecision.Proceed -> stageLatest(image, forceManual = if (image.skippedNewer) StatusMessage.NEWER_SCREENSHOT_UNREADABLE else null)
+                    is SendDecision.NeedManual -> stageLatest(image, StatusMessage.IDENTITY_UNRELIABLE, epoch)
+                    SendDecision.Proceed -> stageLatest(image, if (image.skippedNewer) StatusMessage.NEWER_SCREENSHOT_UNREADABLE else null, epoch)
                 }
             }
             SelectionResult.NoScreenshots -> skipWith(StatusMessage.NO_SCREENSHOT)
@@ -285,12 +322,13 @@ class AutomationController(
         }
     }
 
-    private fun stageLatest(image: LatestImage, forceManual: StatusMessage?) {
+    private fun stageLatest(image: LatestImage, forceManual: StatusMessage?, epoch: Int) {
         latest.stage(image, settings()) { res ->
-            if (machine.state != AutomationState.CAPTURING_SCREEN) {
+            if (epoch != captureEpoch || machine.state != AutomationState.CAPTURING_SCREEN) {
                 (res as? CaptureResult.Saved)?.let { repository.delete(it.shot) }
                 guard.finish(); return@stage
             }
+            disarmWatchdog()
             guard.finish()
             when (res) {
                 is CaptureResult.Saved -> {
@@ -401,6 +439,9 @@ class AutomationController(
         val e = shareEngine ?: return null
         if (machine.state != AutomationState.PREPARING_ATTACHMENT || machine.paused) { shareEngine = null; return null }
         val a = e.step(view)
+        val trace = "share: stage=${view.stage} rows=${view.rowTitles.size} texts=${view.visibleTexts.size} recipientLabel=${!view.previewRecipient.isNullOrBlank()} sendButton=${view.sendButtonAvailable} -> ${a::class.simpleName}" +
+            ((a as? ShareAction.Done)?.let { " ${it.outcome}" } ?: "")
+        if (trace != lastShareTrace) { ActivityLog.add(trace); lastShareTrace = trace }
         if (a is ShareAction.Done) onShareOutcome(a.outcome)
         return a
     }
@@ -475,6 +516,7 @@ class AutomationController(
 
     private fun set(m: StatusMessage) {
         message = m
+        ActivityLog.add("status: $m")
         notifyChange()
     }
 
@@ -491,6 +533,7 @@ class AutomationController(
     companion object {
         const val DIRECT_SELECT_TIMEOUT_MS = 15_000L
         const val SEND_FLOW_TIMEOUT_MS = 25_000L
+        const val CAPTURE_TIMEOUT_MS = 12_000L
     }
 }
 

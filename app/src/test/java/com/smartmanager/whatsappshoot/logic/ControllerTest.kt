@@ -163,6 +163,16 @@ class ControllerTest {
         assertEquals(INACTIVE, r.state); assertEquals(0, r.shots())
     }
 
+    @Test fun captureThatNeverReturns_isTimedOutAndALateResultIsDiscarded() {
+        val r = rig(); r.engine.deferred = true; r.controller.start()
+        r.controller.onScreen(conversation()); r.scheduler.advance(1_000)
+        assertEquals(CAPTURING_SCREEN, r.state)
+        r.scheduler.advance(AutomationController.CAPTURE_TIMEOUT_MS + 100)
+        assertEquals(ERROR, r.state); assertEquals(StatusMessage.CAPTURE_FAILED, r.message)
+        r.engine.complete()                      // the system finally answers: too late
+        assertEquals(ERROR, r.state); assertEquals("late screenshot deleted", 0, r.shots())
+    }
+
     @Test fun pauseAndResume() {
         val r = rig(); r.controller.start()
         r.controller.onScreen(conversation()); r.scheduler.advance(300)

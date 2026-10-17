@@ -12,7 +12,7 @@ This report separates three kinds of evidence. Nothing in the second or third co
 | **B. Compile check (PASSED)** | Android platform sources type-check against the real Android 34 API. Proves they compile, not that they behave. |
 | **C. Not run** | Gradle build, APK packaging, Compose UI compilation, emulator or physical-device behaviour. |
 
-## A. Automated JVM tests: 185 tests, 0 failures
+## A. Automated JVM tests: 200 tests, 0 failures
 
 Run with `scripts/run-jvm-tests.sh` (or `scripts/jvm-tests-quick.sh` in the authoring sandbox).
 
@@ -22,13 +22,13 @@ Run with `scripts/run-jvm-tests.sh` (or `scripts/jvm-tests-quick.sh` in the auth
 | `ActivationEngineTest` | 16 | activation, restart/update, copy to another installation, key loss, reinstall, device replacement, record corruption + backup slot, forged edits, Keystore/storage failure |
 | `LicenseToolTest` | 10 | keygen -> issue -> verify -> activate-in-app round trip, unique IDs, wrong passphrase, missing key, malformed input, no secrets printed, no overwrite |
 | `StateMachineTest` | 10 | transition table, stop from every state, no skipping verification, pause/resume |
-| `ClassifierAndIdentityTest` | 14 | screen classification (synthetic snapshots), Business variant, destination verification, unambiguous share-row selection, hashed identity |
+| `ClassifierAndIdentityTest` | 18 | screen classification (synthetic snapshots), Business variant, destination verification, unambiguous share-row selection, hashed identity |
 | `RepositoryAndGuardTest` | 7 | atomic save, retention cleanup that never deletes foreign files, storage failure, duplicate-capture guard |
-| `ControllerTest` | 45 | full automation workflow with fakes (see matrices) |
+| `ControllerTest` | 46 | full automation workflow with fakes (see matrices) |
 | `ScreenshotSelectionTest` | 13 | latest-screenshot selection: Screenshots-folder-only, formats, pending/trashed/empty, date fallbacks, deleted/unreadable latest, permission states, identical files |
 | `SendPolicyTest` | 7 | the three sending behaviors, per-chat independence, unreliable identity, persistent ledger |
-| `ShareFlowTest` | 7 | share-screen engine: one-row selection, recipient check before Send, confirmed vs unconfirmed, timeout, stop |
-| `LatestWorkflowTest` | 32 | end-to-end workflow with fakes (see matrix below) |
+| `ShareFlowTest` | 12 | share-screen engine: one-row selection, recipient check before Send, confirmed vs unconfirmed, timeout, stop |
+| `LatestWorkflowTest` | 37 | end-to-end workflow with fakes (see matrix below) |
 | `PolicyTest` | 11 | static checks: no INTERNET permission, no network APIs, no backup, FileProvider scope, no logging, no `Send` automation, no private key committed, signing code absent from the app |
 
 Sensitivity check: deleting the signature check in `LicenseVerifier` makes 3 tests fail (performed once, by hand).
@@ -126,3 +126,16 @@ with stubs for `R`, `BuildConfig` and `androidx.core.content.FileProvider`. Resu
 - R8 minification / ProGuard rules: not exercised.
 
 See `docs/DEVICE_TEST_PLAN.md` for the checklist that closes these gaps.
+
+
+## Round 3: "stuck on preparing / nothing sent" (user report from a real phone, version 1.0.1)
+Findings from the user's screenshots (a real phone, WhatsApp installed): status stayed "Preparing attachment"; "Last WhatsApp screen seen:
+UNKNOWN_WHATSAPP (android.widget.FrameLayout)"; the newest screenshot itself was found correctly.
+Root causes found by reading the code, all fixed and covered by JVM tests (not yet confirmed on a phone):
+1. The share-flow engine only advanced on accessibility events and never re-checked a screen that loaded late -> now re-checked every 400 ms while a share flow is running.
+2. WhatsApp reports a generic `android.widget.FrameLayout` class for window events; it was recorded as "the screen" -> generic framework classes are now ignored.
+3. Share list / send screen / Send button were recognised only by guessed view ids -> now recognised by structure (text rows without a message box, message box + send-like button, chat title match) with the recipient verified by the chat's name appearing on the send screen.
+4. No timeout on a lookup/capture that never reports back -> 12 s watchdog; late results are discarded.
+5. UI: squashed "Done" button, stale "never sends" text, no visible explanation that automatic sending is a separate switch -> fixed.
+Added: in-app activity log + diagnostics (copy/share) so the next failure can be diagnosed from the phone.
+Still unverified: all share-screen heuristics against a real WhatsApp (see docs/KNOWN_LIMITATIONS.md).

@@ -53,7 +53,7 @@ private fun Root(graph: AppGraph) {
             titles.forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) }) }
         }
         when (tab) {
-            0 -> HomeScreen(graph, openLicense = { tab = 2 })
+            0 -> HomeScreen(graph, openLicense = { tab = 2 }, openSettings = { tab = 1 })
             1 -> SettingsScreen(graph)
             2 -> LicenseScreen(graph)
             else -> PrivacyScreen()

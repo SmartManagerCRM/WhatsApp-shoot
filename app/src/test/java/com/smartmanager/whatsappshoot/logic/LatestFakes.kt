@@ -42,8 +42,13 @@ class FakeLatestProvider(private val source: FakeSource, private val repo: Scree
     val selector = ScreenshotSelector(source, clock)
     var finds = 0
     var failStaging = false
+    var hangFind = false
+    private var pendingFind: ((SelectionResult) -> Unit)? = null
+    fun completeHungFind() { pendingFind?.invoke(selector.selectLatest(listOf("Screenshots"))); pendingFind = null }
     override fun find(settings: AutomationSettings, callback: (SelectionResult) -> Unit) {
-        finds++; callback(selector.selectLatest(settings.screenshotFolders))
+        finds++
+        if (hangFind) { pendingFind = callback; return }
+        callback(selector.selectLatest(settings.screenshotFolders))
     }
     override fun stage(image: LatestImage, settings: AutomationSettings, callback: (CaptureResult) -> Unit) {
         if (failStaging) { callback(CaptureResult.Failed(FailureReason.STORAGE)); return }

@@ -98,6 +98,7 @@ class AppGraph private constructor(app: Application) {
             notifier.update(v)
             if (v.state == AutomationState.INACTIVE) watcher.stop() else watcher.start()
             WhatsAppAccessibilityService.instance?.refreshOverlay()
+            if (controller.shareFlowActive) WhatsAppAccessibilityService.instance?.ensureShareTicker()
             if (v.state != AutomationState.CAPTURE_PERMISSION_REQUIRED) notifier.cancelPermissionNeeded()
         }
         refreshLicense()

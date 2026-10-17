@@ -50,10 +50,44 @@ class ShareFlowTest {
     @Test fun recipientMismatchOrUnreadableNeverSends() {
         val e1 = ShareFlowEngine(alice, h, true, 0); e1.step(list("Alice"))
         assertEquals(ShareOutcome.ABORT_RECIPIENT_MISMATCH, done(e1.step(preview("Bob"))))
-        val e2 = ShareFlowEngine(alice, h, true, 0); e2.step(list("Alice"))
-        assertEquals(ShareOutcome.ABORT_RECIPIENT_UNVERIFIED, done(e2.step(preview(null))))
-        val e3 = ShareFlowEngine(alice, h, true, 0); e3.step(list("Alice"))
-        assertEquals(ShareOutcome.ABORT_RECIPIENT_UNVERIFIED, done(e3.step(preview("  "))))
+        for (blank in listOf(null, "  ")) {
+            val e = ShareFlowEngine(alice, h, true, 0); e.step(list("Alice"))
+            // the recipient may simply not have rendered yet: wait a little, then give up without ever sending
+            repeat(ShareFlowEngine.PREVIEW_PATIENCE - 1) { assertEquals(ShareAction.Wait, e.step(preview(blank))) }
+            assertEquals(ShareOutcome.ABORT_RECIPIENT_UNVERIFIED, done(e.step(preview(blank))))
+        }
+    }
+
+    private fun previewWithTexts(texts: List<String?>, send: Boolean = true) =
+        ShareScreenView(ShareStage.SHARE_PREVIEW, previewRecipient = null, sendButtonAvailable = send, visibleTexts = texts)
+
+    @Test fun recipientVerifiedFromVisibleTextsWhenNoLabelIdIsKnown() {
+        val e = ShareFlowEngine(alice, h, true, 1); e.step(list("Alice"))
+        assertEquals(ShareAction.ClickSend, e.step(previewWithTexts(listOf("Add a caption", "alice", "Send"))))
+    }
+
+    @Test fun otherNamesOnlyNeverSend() {
+        val e = ShareFlowEngine(alice, h, true, 1); e.step(list("Alice"))
+        repeat(ShareFlowEngine.PREVIEW_PATIENCE - 1) { assertEquals(ShareAction.Wait, e.step(previewWithTexts(listOf("Bob", "Add a caption")))) }
+        assertEquals(ShareOutcome.ABORT_RECIPIENT_UNVERIFIED, done(e.step(previewWithTexts(listOf("Bob", "Add a caption")))))
+    }
+
+    @Test fun nameRendersLate_stillSendsOnceItAppears() {
+        val e = ShareFlowEngine(alice, h, true, 1); e.step(list("Alice"))
+        assertEquals(ShareAction.Wait, e.step(previewWithTexts(listOf("Add a caption"))))
+        assertEquals(ShareAction.ClickSend, e.step(previewWithTexts(listOf("Add a caption", "Alice"))))
+    }
+
+    @Test fun explicitLabelWinsOverVisibleTexts() {
+        // if WhatsApp's own recipient label says Bob, a stray "Alice" elsewhere on the screen must not allow Send
+        val e = ShareFlowEngine(alice, h, true, 1); e.step(list("Alice"))
+        val v = ShareScreenView(ShareStage.SHARE_PREVIEW, previewRecipient = "Bob", sendButtonAvailable = true, visibleTexts = listOf("Alice", "Bob"))
+        assertEquals(ShareOutcome.ABORT_RECIPIENT_MISMATCH, done(e.step(v)))
+    }
+
+    @Test fun noSendWhenButtonMissing_evenIfRecipientMatches() {
+        val e = ShareFlowEngine(alice, h, true, 1); e.step(list("Alice"))
+        assertEquals(ShareAction.Wait, e.step(previewWithTexts(listOf("Alice"), send = false)))
     }
 
     @Test fun timeoutAndStop() {

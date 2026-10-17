@@ -21,6 +21,8 @@
 - Starting WhatsApp's share screen from a background service can be blocked by Android; the app then posts a notification to continue with one tap (untested).
 - Screenshot folder detection relies on the folder name (default `Screenshots`); phones that store screenshots elsewhere need the name added in Settings.
 
+- Share-screen recognition is structural and heuristic (text rows without a message box = recipient list; message box + a send-like corner button = send screen; Send found by id, then by a "send" label in common languages, then as the bottom-right button). It has been exercised only against synthetic screens. If the same chat name appears twice in WhatsApp's share list (e.g. "frequent" and "recent"), the app treats it as ambiguous and stops rather than guess.
+
 ## Platform and WhatsApp restrictions
 - WhatsApp has no supported API to insert a file into an already-open chat. The app opens WhatsApp's own share screen (documented `ACTION_SEND`).
   The user chooses the chat and presses Send. Direct row selection is experimental and off by default.

@@ -185,6 +185,40 @@ class LatestWorkflowTest {
         assertEquals(0, r.provider.finds); assertEquals(0, r.launcher.calls); assertEquals(StatusMessage.CONVERSATION_NOT_RECOGNISED, r.message)
     }
 
+    // ---- never stuck ----
+    @Test fun lookupThatNeverReturns_isTimedOut_notStuckForever() {
+        val r = rig(SendBehavior.EVERY_CHAT_OPEN); r.source.add(1); r.provider.hangFind = true
+        r.open("Alice")
+        assertEquals(CAPTURING_SCREEN, r.state); assertEquals(StatusMessage.LOOKING_FOR_SCREENSHOT, r.message)
+        r.scheduler.advance(AutomationController.CAPTURE_TIMEOUT_MS + 100)
+        assertEquals(ERROR, r.state); assertEquals(StatusMessage.CAPTURE_FAILED, r.message)
+        r.provider.completeHungFind()   // a very late answer must be ignored
+        assertEquals(ERROR, r.state); assertEquals(0, r.launcher.calls)
+        r.controller.dismiss(); assertEquals(WAITING_FOR_WHATSAPP, r.state)
+    }
+
+    @Test fun lookupThatReturnsInTime_cancelsTheWatchdog() {
+        val r = rig(SendBehavior.EVERY_CHAT_OPEN); r.source.add(1)
+        r.open("Alice"); assertEquals(ATTACHMENT_READY, r.state)
+        r.scheduler.advance(AutomationController.CAPTURE_TIMEOUT_MS * 3)
+        assertEquals("watchdog must not fire after success", ATTACHMENT_READY, r.state)
+    }
+
+    @Test fun stopCancelsTheWatchdog() {
+        val r = rig(SendBehavior.EVERY_CHAT_OPEN); r.source.add(1); r.provider.hangFind = true
+        r.open("Alice"); r.controller.stop(); r.scheduler.advance(60_000)
+        assertEquals(INACTIVE, r.state)
+        r.provider.completeHungFind(); assertEquals(INACTIVE, r.state)
+    }
+
+    @Test fun activityLogRecordsStepsButNoNames() {
+        ActivityLog.clear()
+        val r = rig(SendBehavior.EVERY_CHAT_OPEN); r.source.add(1); r.open("Very Secret Person")
+        val text = ActivityLog.text()
+        assertTrue(text.contains("lookup result")); assertTrue(text.contains("state "))
+        assertFalse(text.contains("Secret"))
+    }
+
     // ---- stopping ----
     @Test fun stopCancelsPendingLookup_andLaterEvents() {
         val r = rig(); r.source.add(1); r.controller.onScreen(r.convSnapshot("Alice")); r.scheduler.advance(300)

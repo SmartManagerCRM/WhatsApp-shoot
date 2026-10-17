@@ -12,7 +12,10 @@ enum class CaptureMethod {
 
 /** Where the image comes from. */
 enum class ImageSource {
-    /** Default: the newest existing screenshot from the device's Screenshots folder; nothing new is captured. */
+    /** Default: the newest PHOTO on the phone, i.e. the first picture WhatsApp's own gallery shows; no folder is involved and nothing new is captured. */
+    WHATSAPP_GALLERY,
+
+    /** The newest existing screenshot from the configured Screenshots folder; nothing new is captured. */
     LATEST_SCREENSHOT,
 
     /** Legacy: take a new screenshot of the screen. */
@@ -20,7 +23,7 @@ enum class ImageSource {
 }
 
 data class AutomationSettings(
-    val imageSource: ImageSource = ImageSource.LATEST_SCREENSHOT,
+    val imageSource: ImageSource = ImageSource.WHATSAPP_GALLERY,
     val sendBehavior: SendBehavior = SendBehavior.ONCE_PER_CHAT,
     /** Folder names (exact path segment, case-insensitive) that count as "the Screenshots folder". */
     val screenshotFolders: List<String> = listOf("Screenshots"),
@@ -58,3 +61,6 @@ data class AutomationSettings(
         const val DEFAULT_RETENTION_MS = 60L * 60 * 1000 // 1 hour
     }
 }
+
+/** True for every source that sends an EXISTING picture (as opposed to taking a new screenshot). */
+val AutomationSettings.sendsExistingPicture: Boolean get() = imageSource != ImageSource.CAPTURE_NEW

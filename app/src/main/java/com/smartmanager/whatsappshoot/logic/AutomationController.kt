@@ -42,6 +42,7 @@ class AutomationController(
     private var baselineOutgoing: Int? = null
     private var shareEngine: ShareFlowEngine? = null
     private var attachEngine: AttachFlowEngine? = null
+    private var activeTilePlan: TilePlan? = null
     private var shareTimeout: Cancellable? = null
     private var captureEpoch = 0
     private var captureWatchdog: Cancellable? = null
@@ -126,7 +127,7 @@ class AutomationController(
     fun onScreen(s: ScreenSnapshot) {
         if (machine.state == AutomationState.INACTIVE || machine.paused) return
         val c = classifier.classify(s)
-        if (settings().imageSource == ImageSource.LATEST_SCREENSHOT && machine.state == AutomationState.ATTACHMENT_READY && handedOffAndLeft(c)) dismiss()
+        if (settings().sendsExistingPicture && machine.state == AutomationState.ATTACHMENT_READY && handedOffAndLeft(c)) dismiss()
         when {
             c.kind == ScreenKind.IGNORED -> return
             !c.isWhatsApp -> onLeftWhatsApp()
@@ -215,8 +216,8 @@ class AutomationController(
         if (!userInitiated && machine.state != AutomationState.CONVERSATION_DETECTED) return false
         // Reading an existing screenshot needs no throttle (one attempt per conversation visit already prevents loops);
         // the cooldown protects the screen-capture APIs.
-        if (!guard.tryBegin(userInitiated, useCooldown = settings().imageSource != ImageSource.LATEST_SCREENSHOT)) return false
-        if (settings().imageSource == ImageSource.LATEST_SCREENSHOT) return startLatest(userInitiated)
+        if (!guard.tryBegin(userInitiated, useCooldown = !settings().sendsExistingPicture)) return false
+        if (settings().sendsExistingPicture) return startLatest(userInitiated)
         // Identity of what is on screen right now (null for a manual capture of an unrecognised screen).
         captureIdentity = if (machine.state == AutomationState.CONVERSATION_DETECTED) currentIdentity else null
         if (!machine.dispatch(AutomationEvent.CAPTURE_STARTED)) {
@@ -355,7 +356,7 @@ class AutomationController(
     fun onNewScreenshotAvailable() {
         val st = settings()
         if (machine.state == AutomationState.INACTIVE || machine.paused) return
-        if (st.imageSource != ImageSource.LATEST_SCREENSHOT || st.sendBehavior != SendBehavior.NEW_SCREENSHOT_ONLY) return
+        if (!st.sendsExistingPicture || st.sendBehavior != SendBehavior.NEW_SCREENSHOT_ONLY) return
         if (machine.state != AutomationState.CONVERSATION_DETECTED || guard.isCapturing) return
         cancelPending()
         guard.conversationLeft() // a new image makes this a fresh opportunity within the same visit
@@ -406,14 +407,16 @@ class AutomationController(
         set(StatusMessage.PREPARING_ATTACHMENT)
         if (allowSend) {
             // Fully automatic: stay in the open chat and use WhatsApp's own attach menu (no recipient list, so no name matching).
-            val route = shotImage?.let { latest.galleryRoute(it, settings().screenshotFolders) } ?: GalleryRoute.ALBUM
+            val galleryMode = settings().imageSource == ImageSource.WHATSAPP_GALLERY
+            activeTilePlan = if (galleryMode) shotImage?.let { latest.tilePlan(it) } ?: TilePlan(verified = false, skip = 0) else null
+            val route = if (galleryMode) GalleryRoute.LANDING else shotImage?.let { latest.galleryRoute(it, settings().screenshotFolders) } ?: GalleryRoute.ALBUM
             if (route == GalleryRoute.BLOCKED_VIDEO) {
                 ActivityLog.add("a video newer than the screenshot is in the screenshots folder: not sending")
                 attachmentFailed(StatusMessage.AUTO_SEND_NOT_PHOTO)
                 return
             }
-            val landing = settings().landingGalleryFirst && route == GalleryRoute.LANDING
-            ActivityLog.add(if (landing) "screenshot is the newest item on the phone: using the landing gallery" else "using the Screenshots album")
+            val landing = galleryMode || (settings().landingGalleryFirst && route == GalleryRoute.LANDING)
+            ActivityLog.add(if (galleryMode) "newest photo mode: plan verified=${activeTilePlan?.verified} newerVideos=${activeTilePlan?.skip}" else if (landing) "screenshot is the newest item on the phone: using the landing gallery" else "using the Screenshots album")
             attachEngine = AttachFlowEngine(baselineOutgoing, clock, landing)
             shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
             ActivityLog.add("in-chat attach flow started")
@@ -454,6 +457,9 @@ class AutomationController(
 
     /** True when the running flow works inside the open chat (attach -> Gallery -> album -> Send). */
     val attachFlowActive: Boolean get() = attachEngine != null && machine.state == AutomationState.PREPARING_ATTACHMENT
+
+    /** Set while the "newest photo in WhatsApp's gallery" flow runs: how to choose the tile (null in the other modes). */
+    fun tilePlan(): TilePlan? = if (attachFlowActive) activeTilePlan else null
 
     /** Folder names shown as albums in WhatsApp's gallery. */
     fun albumNames(): List<String> = ScreenshotFolderMatcher.leafNames(settings().screenshotFolders)

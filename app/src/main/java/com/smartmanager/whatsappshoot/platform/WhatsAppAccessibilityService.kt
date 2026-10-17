@@ -411,18 +411,30 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             val r = android.graphics.Rect().also { n.getBoundsInScreen(it) }
             isAlbum(lc(t)) && (spinnerRect == null || !spinnerRect.contains(r.centerX(), r.centerY()))
         }?.second
-        // Gallery tiles only (the chat's own media thumbnails use other ids); the camera tile is excluded.
-        val thumb = if (!pickerOpen) null else sc.clicks.filter { ci ->
+        // Gallery tiles only (the chat's own media thumbnails use other ids); the camera tile is excluded. Reading order = newest first.
+        val tiles = if (!pickerOpen) emptyList() else readingOrder(sc.clicks.filter { ci ->
             ci.id in TILE_IDS && lc(ci.desc).let { d -> CAMERA_WORDS.none { d.contains(it) } } && ci.rect.top >= h * 0.12 && ci.rect.bottom <= h
-        }.minWithOrNull(compareBy<ClickInfo>({ it.rect.top }, { it.rect.left }))
-        val thumbNode = thumb?.node
-        // A video tile shows a duration (m:ss) or a "video" description inside its bounds: photos only are ever sent.
-        val thumbIsVideo = thumb != null && (VIDEO_WORDS.any { lc(thumb.desc).contains(it) } || sc.labels.any { (t, n) ->
-            val r = android.graphics.Rect().also { n.getBoundsInScreen(it) }
-            thumb.rect.contains(r.centerX(), r.centerY()) && (DURATION.matches(t.trim()) || VIDEO_WORDS.any { w3 -> lc(t).contains(w3) })
         })
-        if (thumb != null) {
-            val d = "tile: desc=${lc(thumb.desc).take(30)} video=$thumbIsVideo inside=${sc.labels.count { (_, n) -> val r = android.graphics.Rect().also { n.getBoundsInScreen(it) }; thumb.rect.contains(r.centerX(), r.centerY()) }}"
+        // A video tile shows a duration (m:ss) or a "video" description inside its bounds: only photos are ever sent.
+        fun isVideoTile(t: ClickInfo): Boolean = VIDEO_WORDS.any { lc(t.desc).contains(it) } || sc.labels.any { (txt, n) ->
+            val r = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+            t.rect.contains(r.centerX(), r.centerY()) && (DURATION.matches(txt.trim()) || VIDEO_WORDS.any { w3 -> lc(txt).contains(w3) })
+        }
+        val flags = tiles.map(::isVideoTile)
+        val plan = c.tilePlan()
+        val choice: com.smartmanager.whatsappshoot.logic.TileChoice = when {
+            plan != null -> com.smartmanager.whatsappshoot.logic.TileChooser.choose(flags, plan)
+            tiles.isEmpty() -> com.smartmanager.whatsappshoot.logic.TileChoice.None
+            flags[0] -> com.smartmanager.whatsappshoot.logic.TileChoice.NotAPhoto
+            else -> com.smartmanager.whatsappshoot.logic.TileChoice.Pick(0, false)
+        }
+        val thumb: ClickInfo? = (choice as? com.smartmanager.whatsappshoot.logic.TileChoice.Pick)?.let { tiles.getOrNull(it.index) }
+        val thumbNode = thumb?.node
+        val thumbIsVideo = choice is com.smartmanager.whatsappshoot.logic.TileChoice.NotAPhoto || choice is com.smartmanager.whatsappshoot.logic.TileChoice.Unverifiable
+        val hasTile = choice !is com.smartmanager.whatsappshoot.logic.TileChoice.None
+        if (tiles.isNotEmpty()) {
+            val d = "tiles: n=${tiles.size} video=${flags.take(8).joinToString("") { if (it) "V" else "p" }} desc0=${lc(tiles[0].desc).take(24)} choice=${choice::class.simpleName}" +
+                ((choice as? com.smartmanager.whatsappshoot.logic.TileChoice.Pick)?.let { " #${it.index}${if (it.byPosition) " (by position)" else ""}" } ?: "")
             if (d != lastTileLog) { lastTileLog = d; ActivityLog.add(d) }
         }
         // Send: WhatsApp's own id or a "send" label only. Position-based guesses are NOT used here: the chat's camera button sits in the same corner.
@@ -432,7 +444,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val view = com.smartmanager.whatsappshoot.logic.AttachScreenView(
             chatVisible = chatVisible, attachButton = attach != null, galleryEntry = gallery != null,
             pickerOpen = pickerOpen, albumSelected = currentAlbumOk, albumLabel = albumItem != null,
-            albumsSwitcher = spinner != null, thumbnail = thumb != null, thumbIsVideo = thumbIsVideo, sendButton = send != null,
+            albumsSwitcher = spinner != null, thumbnail = hasTile, thumbIsVideo = thumbIsVideo, sendButton = send != null,
             canScroll = popupScroll != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null,
         )
         if (pickerOpen && !currentAlbumOk) {
@@ -440,7 +452,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             val seen = sc.labels.map { it.first.trim() }.filter { it.length in 2..28 }.distinct().take(24).joinToString(" | ")
             if (seen.isNotEmpty() && seen != lastLabels) { lastLabels = seen; ActivityLog.add("picker labels: $seen") }
         }
-        if (pickerOpen && thumb != null && send == null) {
+        if (pickerOpen && hasTile && send == null) {
             val cands = sc.clicks.filter { it.rect.centerY() > h * 0.7 }.take(8).joinToString(" ; ") { "${it.id ?: "-"}|${it.cls?.substringAfterLast('.') ?: "?"}|${lc(it.desc).take(16)}" }
             if (cands != lastSendCands) { lastSendCands = cands; ActivityLog.add("lower controls: $cands") }
         }
@@ -462,6 +474,16 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             ActivityLog.add("clicked ${a.javaClass.simpleName}: $ok")
             if (!ok && a != com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker) c.attachClickFailed(a)
         }
+    }
+
+    /** Gallery tiles in the order the eye reads them: row by row (tiles of one row can differ by a few pixels), left to right. */
+    private fun readingOrder(list: List<ClickInfo>): List<ClickInfo> {
+        val rows = ArrayList<MutableList<ClickInfo>>()
+        for (t in list.sortedBy { it.rect.top }) {
+            val row = rows.lastOrNull()
+            if (row != null && kotlin.math.abs(t.rect.top - row[0].rect.top) < t.rect.height() / 2) row += t else rows += mutableListOf(t)
+        }
+        return rows.flatMap { r -> r.sortedBy { it.rect.left } }
     }
 
     private fun clickAncestor(node: AccessibilityNodeInfo?): Boolean {

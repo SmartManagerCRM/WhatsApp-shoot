@@ -60,6 +60,7 @@ import com.smartmanager.whatsappshoot.logic.CaptureMethod
 import com.smartmanager.whatsappshoot.logic.ImageSource
 import com.smartmanager.whatsappshoot.logic.MediaAccess
 import com.smartmanager.whatsappshoot.logic.StoredScreenshot
+import com.smartmanager.whatsappshoot.logic.sendsExistingPicture
 import com.smartmanager.whatsappshoot.platform.AppGraph
 import com.smartmanager.whatsappshoot.platform.ProjectionPermissionActivity
 import com.smartmanager.whatsappshoot.platform.ProjectionSession
@@ -103,7 +104,7 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
     }
     val mediaLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { media = graph.mediaAccess(); videoOk = videoGranted() }
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notificationsOn = it }
-    val latestMode = settings.imageSource == ImageSource.LATEST_SCREENSHOT
+    val latestMode = settings.sendsExistingPicture
 
     var countdown by remember { mutableIntStateOf(0) }
     LaunchedEffect(countdown) {
@@ -119,7 +120,7 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
     var showLog by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        ScreenTitle(stringResource(R.string.app_name), "Sends your latest screenshot to the WhatsApp chat you open")
+        ScreenTitle(stringResource(R.string.app_name), "Sends your newest photo to the WhatsApp chat you open")
 
         // ---------- Hero: state + the one big control ----------
         Hero(
@@ -163,7 +164,7 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
                 RowDivider()
                 CheckRow(
                     media == MediaAccess.FULL, "Photo access",
-                    when (media) { MediaAccess.FULL -> "Allowed"; MediaAccess.PARTIAL -> "Only some photos shared: choose \"Allow all\""; MediaAccess.NONE -> "Needed to find your latest screenshot" },
+                    when (media) { MediaAccess.FULL -> "Allowed"; MediaAccess.PARTIAL -> "Only some photos shared: choose \"Allow all\""; MediaAccess.NONE -> "Needed to find your newest picture" },
                     if (media != MediaAccess.FULL) "Allow" else null,
                 ) { mediaLauncher.launch(mediaPermissions()) }
                 RowDivider()
@@ -196,7 +197,8 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
                 if (settings.fullyAutomaticSend) {
                     StatusPill("Fully automatic", Tone.OK)
                     Text(
-                        "Open a chat in WhatsApp and the newest screenshot is sent to it, with no tap needed. If the newest item on your phone is a video, nothing is sent.",
+                        if (settings.imageSource == ImageSource.WHATSAPP_GALLERY) "Open a chat in WhatsApp and your newest photo (the first one in WhatsApp's gallery) is sent to it, with no tap needed. Videos and other files are never sent."
+                        else "Open a chat in WhatsApp and the newest screenshot is sent to it, with no tap needed. If the newest item on your phone is a video, nothing is sent.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
@@ -215,7 +217,7 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
                 FilledTonalButton(
                     onClick = { if (latestMode) c.captureNow() else if (countdown > 0) countdown = 0 else countdown = COUNTDOWN_SECONDS },
                     enabled = !v.paused, modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (latestMode) "Send latest screenshot now" else if (countdown > 0) "Cancel ($countdown)" else "Capture screenshot") }
+                ) { Text(if (latestMode) "Send newest picture now" else if (countdown > 0) "Cancel ($countdown)" else "Capture screenshot") }
                 if (countdown > 0 && !latestMode) Text("Switch to the screen you want. Capturing in $countdown s.", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { c.resetCurrentChatStatus() }) { Text("Reset this chat") }

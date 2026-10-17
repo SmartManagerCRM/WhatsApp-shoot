@@ -42,6 +42,8 @@ class FakeLatestProvider(private val source: FakeSource, private val repo: Scree
     val selector = ScreenshotSelector(source, clock)
     var finds = 0
     var route = GalleryRoute.ALBUM
+    var plan = TilePlan(verified = false, skip = 0)
+    override fun tilePlan(image: LatestImage) = plan
     var newestOverall: Boolean
         get() = route == GalleryRoute.LANDING
         set(v) { route = if (v) GalleryRoute.LANDING else GalleryRoute.ALBUM }
@@ -53,7 +55,7 @@ class FakeLatestProvider(private val source: FakeSource, private val repo: Scree
     override fun find(settings: AutomationSettings, callback: (SelectionResult) -> Unit) {
         finds++
         if (hangFind) { pendingFind = callback; return }
-        callback(selector.selectLatest(settings.screenshotFolders))
+        callback(selector.selectLatest(settings.screenshotFolders, anyFolder = settings.imageSource == ImageSource.WHATSAPP_GALLERY))
     }
     override fun stage(image: LatestImage, settings: AutomationSettings, callback: (CaptureResult) -> Unit) {
         if (failStaging) { callback(CaptureResult.Failed(FailureReason.STORAGE)); return }

@@ -50,6 +50,9 @@ interface LatestScreenshotProvider {
 
     /** Which gallery route is safe for sending [image] as a photo (see [GalleryRoute]). */
     fun galleryRoute(image: LatestImage, folders: List<String>): GalleryRoute = GalleryRoute.ALBUM
+
+    /** What the phone can say about videos newer than [image] (see [TilePlan]). Default: nothing can be verified. */
+    fun tilePlan(image: LatestImage): TilePlan = TilePlan(verified = false, skip = 0)
 }
 
 enum class GalleryRoute {

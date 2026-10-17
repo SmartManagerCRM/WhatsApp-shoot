@@ -29,6 +29,7 @@ import com.smartmanager.whatsappshoot.logic.ScreenshotRepository
 import com.smartmanager.whatsappshoot.logic.ScreenshotSelector
 import com.smartmanager.whatsappshoot.logic.ScreenshotSource
 import com.smartmanager.whatsappshoot.logic.SelectionResult
+import com.smartmanager.whatsappshoot.logic.TilePlan
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -39,6 +40,9 @@ import java.util.concurrent.Executors
  * Reads existing screenshots from MediaStore. Only image rows whose folder is one of the configured Screenshots folders are
  * requested, at most [MAX] metadata rows are read, and only the one chosen file's bytes are opened. Nothing is uploaded.
  */
+/** More newer videos than this and the photo is not among the first tiles: nothing is sent by position. */
+private const val MAX_SKIP_VIDEOS = 6
+
 class MediaStoreScreenshotSource(private val context: Context) : ScreenshotSource {
     private val resolver: ContentResolver get() = context.contentResolver
 
@@ -71,11 +75,13 @@ class MediaStoreScreenshotSource(private val context: Context) : ScreenshotSourc
         // Coarse SQL filter; the selector re-checks the exact folder segment on every row.
         val pathCol = if (q) MediaStore.Images.Media.RELATIVE_PATH else MediaStore.Images.Media.DATA
         val leaves = ScreenshotFolderMatcher.leafNames(folders)
-        if (leaves.isEmpty()) return emptyList()
+        // No folders given = the whole phone (the "newest photo" source); the selector never calls this with an empty list otherwise.
         val like = leaves.joinToString(" OR ") { "$pathCol LIKE ?" }
         val args = leaves.map { if (q) "%$it/" else "%/$it/%" }
-        var selection = "($like)"
-        if (q) selection += " AND ${MediaStore.Images.Media.IS_PENDING} = 0"
+        val parts = ArrayList<String>()
+        if (leaves.isNotEmpty()) parts += "($like)"
+        if (q) parts += "${MediaStore.Images.Media.IS_PENDING} = 0"
+        var selection = parts.joinToString(" AND ")
         val out = ArrayList<MediaCandidate>()
         val bundle = Bundle().apply {
             putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
@@ -141,7 +147,9 @@ class MediaStoreLatestProvider(
 
     override fun find(settings: AutomationSettings, callback: (SelectionResult) -> Unit) {
         worker.execute {
-            val r = try { selector.selectLatest(settings.screenshotFolders) } catch (e: Exception) { SelectionResult.Failed }
+            val r = try {
+                selector.selectLatest(settings.screenshotFolders, anyFolder = settings.imageSource == com.smartmanager.whatsappshoot.logic.ImageSource.WHATSAPP_GALLERY)
+            } catch (e: Exception) { SelectionResult.Failed }
             main.post { callback(r) }
         }
     }
@@ -150,6 +158,21 @@ class MediaStoreLatestProvider(
     private fun videoPermitted(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
         else context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+
+    /** Counts the videos at least as new as [image]: they sit before it in WhatsApp's newest-first gallery. Needs the video permission. */
+    override fun tilePlan(image: LatestImage): TilePlan = try {
+        if (!videoPermitted()) {
+            TilePlan(verified = false, skip = 0)
+        } else {
+            val q = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            val vidUri = if (q) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            val newer = newestDates(vidUri, MediaStore.Video.Media._ID, MediaStore.Video.Media.DATE_ADDED, MediaStore.Video.Media.IS_PENDING, "is_trashed", null, null, MAX_SKIP_VIDEOS + 1)
+                .count { it.second >= image.candidate.dateAddedSec }
+            TilePlan(verified = true, skip = newer.coerceAtMost(MAX_SKIP_VIDEOS + 1))
+        }
+    } catch (e: Exception) {
+        TilePlan(verified = false, skip = 0)
+    }
 
     @Suppress("DEPRECATION")
     private fun newestDates(uri: Uri, idCol: String, dateCol: String, pendingCol: String?, trashedCol: String?, extraSelection: String?, extraArgs: Array<String>?, count: Int): List<Pair<Long, Long>> {

@@ -84,3 +84,12 @@ Real-phone result for 1.0.7: it worked, but when the newest item on the phone wa
 - If the tile about to be tapped shows a duration (m:ss) or a "video" description, nothing is sent.
 - This needs `READ_MEDIA_VIDEO` (date lookups only). Without it the landing gallery is not used and the Screenshots album route applies.
 - Licence persistence: the Keystore can be briefly unavailable (e.g. just after boot). The activation check now retries and, if the Keystore still holds the recorded key but cannot sign right now, keeps the licence active instead of discarding it. Records copied to another phone are still rejected (that phone has no such key).
+
+### v1.1.1: "Newest photo" is now the default source (no folder lookup)
+Real-phone result for 1.1.0: the app could not find the Screenshots folder/album. The default source is now **WHATSAPP_GALLERY** ("Newest photo"):
+- the newest PHOTO of the whole phone is found in the media library (images only, any folder, only for the ledger/preview) - no screenshot folder is needed;
+- in WhatsApp the flow is + > Gallery > the first tile of the landing gallery > Send (no album dropdown);
+- never a video: tiles that show a duration or "video" are skipped (first tile without a marker is taken). With no marker visible, the media library says how many videos are as new as the newest photo (`TilePlan.skip`, needs the video permission):
+  0 = tile 0, n = tile n (by position, logged). With no marker visible AND no video permission nothing is sent, because a video would look the same ("Allow video access" on Home);
+- settings saved by older versions are switched to this source once (settings version 2). "Latest screenshot from a folder" and "Take a new screenshot" remain available.
+The activity log shows `tiles: n=.. video=pppV.. choice=...` so the choice can be checked.

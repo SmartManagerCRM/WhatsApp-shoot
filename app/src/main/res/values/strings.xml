@@ -85,7 +85,7 @@
     <string name="status_auto_unavailable">WhatsApp\'s Send button was not available. Nothing was sent.</string>
     <string name="status_auto_no_gallery">Could not open WhatsApp\'s attach menu / Gallery in this chat. Nothing was sent.</string>
     <string name="status_auto_no_album">Could not find the Screenshots album in WhatsApp\'s gallery. Nothing was sent.</string>
-    <string name="status_auto_not_photo">The newest item is a video, not a photo. Nothing was sent.</string>
+    <string name="status_auto_not_photo">The app could not make sure the newest item is a photo (or it is a video). Nothing was sent. Allow video access on the Home screen.</string>
     <string name="status_auto_no_image">The Screenshots album showed no picture to select. Nothing was sent.</string>
     <string name="status_auto_timeout">WhatsApp did not respond in time. Finish manually.</string>
     <string name="status_chat_reset">Status reset</string>

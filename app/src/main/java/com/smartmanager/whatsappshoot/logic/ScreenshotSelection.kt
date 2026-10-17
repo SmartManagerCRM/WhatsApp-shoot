@@ -121,9 +121,10 @@ class ScreenshotSelector(
     private val minAgeMs: Long = MIN_AGE_MS,
     private val maxCandidates: Int = MAX_CANDIDATES,
 ) {
-    fun selectLatest(folders: List<String>): SelectionResult {
-        val names = ScreenshotFolderMatcher.cleanNames(folders)
-        if (names.isEmpty()) return SelectionResult.NoScreenshots
+    /** @param anyFolder take the newest photo of the whole phone instead of looking in the configured folders. */
+    fun selectLatest(folders: List<String>, anyFolder: Boolean = false): SelectionResult {
+        val names = if (anyFolder) emptyList() else ScreenshotFolderMatcher.cleanNames(folders)
+        if (names.isEmpty() && !anyFolder) return SelectionResult.NoScreenshots
         when (source.access()) {
             MediaAccess.NONE -> return SelectionResult.PermissionDenied
             MediaAccess.PARTIAL -> return SelectionResult.PartialAccess
@@ -138,7 +139,7 @@ class ScreenshotSelector(
         }
         val now = clock.nowMs()
         val eligible = rows.asSequence()
-            .filter { ScreenshotFolderMatcher.matches(it.folder, names) }
+            .filter { anyFolder || ScreenshotFolderMatcher.matches(it.folder, names) }
             .filter { it.mime?.lowercase() in ImageFormats.SUPPORTED_MIME }
             .filter { !it.pending && !it.trashed && it.sizeBytes > 0 }
             .filter { it.effectiveDateMs <= now - minAgeMs }

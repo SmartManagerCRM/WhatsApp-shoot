@@ -286,6 +286,28 @@ class LatestWorkflowTest {
         assertEquals("no share sheet is opened", 0, r.launcher.calls)
     }
 
+    @Test fun newestPhotoMode_needsNoFolder_andUsesTheLandingGalleryWithATilePlan() {
+        val r = autoRig(); r.settings = r.settings.copy(imageSource = ImageSource.WHATSAPP_GALLERY, screenshotFolders = listOf("NoSuchFolder"))
+        r.open("Alice", outgoing = 4)
+        assertEquals("flow started although no screenshot folder exists", PREPARING_ATTACHMENT, r.state); assertTrue(r.controller.attachFlowActive)
+        assertEquals(TilePlan(verified = false, skip = 0), r.controller.tilePlan())
+        r.chatView(4); r.tick(); r.menu(); r.tick()
+        r.clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100); r.gallery()
+        r.clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100)
+        assertEquals("landing gallery: no album dropdown", AttachAction.ClickThumbnail, r.gallery())
+    }
+
+    @Test fun photoGuard_isUsedForTheTilePlan() {
+        val r = autoRig(); r.settings = r.settings.copy(imageSource = ImageSource.WHATSAPP_GALLERY); r.provider.plan = TilePlan(verified = true, skip = 2)
+        r.open("Alice", outgoing = 0)
+        assertEquals(TilePlan(true, 2), r.controller.tilePlan())
+    }
+
+    @Test fun tilePlanIsOnlyForTheNewestPhotoMode() {
+        val r = autoRig(); r.open("Alice", outgoing = 0)   // folder mode
+        assertNull(r.controller.tilePlan())
+    }
+
     @Test fun fullAutoSend_landingGallery_usedOnlyWhenScreenshotIsVerifiedNewest() {
         val verified = autoRig(); verified.provider.newestOverall = true; verified.open("Alice", outgoing = 4)
         verified.chatView(4); verified.tick(); verified.menu(); verified.tick()

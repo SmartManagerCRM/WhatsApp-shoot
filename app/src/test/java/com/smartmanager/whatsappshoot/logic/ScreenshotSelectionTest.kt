@@ -125,4 +125,13 @@ class ScreenshotSelectionTest {
         assertEquals(listOf("DCIM/Screenshots"), ScreenshotFolderMatcher.cleanNames(listOf("/sdcard/DCIM/Screenshots/")))
         assertEquals(listOf("Screenshots"), ScreenshotFolderMatcher.cleanNames(listOf("Screenshots")))
     }
+
+    @Test fun anyFolderMode_picksTheNewestPhotoOfThePhone_ignoringFolders() {
+        val clock = FakeClock(); val src = FakeSource(clock)
+        src.add(1, c = cand(1, clock, ageMs = 60_000, folder = "Pictures/Screenshots/"))
+        src.add(2, c = cand(2, clock, ageMs = 10_000, folder = "WhatsApp/Media/WhatsApp Images/"))
+        val sel = ScreenshotSelector(src, clock)
+        assertEquals(2L, ((sel.selectLatest(listOf("NoSuchFolder"), anyFolder = true)) as SelectionResult.Found).image.candidate.id)
+        assertTrue(sel.selectLatest(listOf("NoSuchFolder")) is SelectionResult.NoScreenshots)
+    }
 }

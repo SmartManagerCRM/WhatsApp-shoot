@@ -28,6 +28,7 @@ import com.smartmanager.whatsappshoot.logic.CaptureMode
 import com.smartmanager.whatsappshoot.logic.ImageFormat
 import com.smartmanager.whatsappshoot.logic.ImageSource
 import com.smartmanager.whatsappshoot.logic.SendBehavior
+import com.smartmanager.whatsappshoot.logic.sendsExistingPicture
 import com.smartmanager.whatsappshoot.platform.AppGraph
 
 @Composable
@@ -59,9 +60,16 @@ fun SettingsScreen(graph: AppGraph) {
 
         SectionCard("What to send", "Where the picture comes from") {
             ChoiceChips(
-                listOf("Latest screenshot" to ImageSource.LATEST_SCREENSHOT, "Take a new screenshot" to ImageSource.CAPTURE_NEW),
+                listOf("Newest photo" to ImageSource.WHATSAPP_GALLERY, "Latest screenshot from a folder" to ImageSource.LATEST_SCREENSHOT, "Take a new screenshot" to ImageSource.CAPTURE_NEW),
                 selected = s.imageSource,
             ) { m -> upd { it.copy(imageSource = m) } }
+            if (s.imageSource == ImageSource.WHATSAPP_GALLERY) {
+                Text(
+                    "Sends the newest photo on your phone: the first picture WhatsApp's own gallery shows. No folder is needed. Videos and other files are never sent; " +
+                        "if the app cannot be sure the picture is a photo, nothing is sent.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (s.imageSource == ImageSource.LATEST_SCREENSHOT) {
                 OutlinedTextField(
                     value = folders,
@@ -75,7 +83,7 @@ fun SettingsScreen(graph: AppGraph) {
             }
         }
 
-        if (s.imageSource == ImageSource.LATEST_SCREENSHOT) {
+        if (s.sendsExistingPicture) {
             SectionCard("When to send", "What happens when you open a chat") {
                 ChoiceChips(
                     listOf("Every chat open" to SendBehavior.EVERY_CHAT_OPEN, "Once per chat" to SendBehavior.ONCE_PER_CHAT, "New screenshot only" to SendBehavior.NEW_SCREENSHOT_ONLY),
@@ -83,9 +91,9 @@ fun SettingsScreen(graph: AppGraph) {
                 ) { b -> upd { it.copy(sendBehavior = b) } }
                 Text(
                     when (s.sendBehavior) {
-                        SendBehavior.EVERY_CHAT_OPEN -> "Sends the latest screenshot whenever you open a chat."
+                        SendBehavior.EVERY_CHAT_OPEN -> "Sends your newest picture whenever you open a chat."
                         SendBehavior.ONCE_PER_CHAT -> "Sends once per chat until you reset that chat's status on the Home screen."
-                        SendBehavior.NEW_SCREENSHOT_ONLY -> "Sends only when the latest screenshot has not been sent to this chat yet (also reacts to a screenshot taken while the chat is open)."
+                        SendBehavior.NEW_SCREENSHOT_ONLY -> "Sends only when the newest picture has not been sent to this chat yet (also reacts to a screenshot taken while the chat is open)."
                     } + " Handled chats are remembered as one-way hashes on this phone, never as names.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -96,7 +104,7 @@ fun SettingsScreen(graph: AppGraph) {
                     "Send automatically", "Off: the app opens WhatsApp's share screen and you press Send.",
                     s.fullyAutomaticSend,
                 ) { b -> if (b) confirmAuto = true else upd { it.copy(fullyAutomaticSend = false) } }
-                if (s.fullyAutomaticSend) {
+                if (s.fullyAutomaticSend && s.imageSource == ImageSource.LATEST_SCREENSHOT) {
                     RowDivider()
                     SwitchSetting(
                         "Use the first picture of WhatsApp's gallery",

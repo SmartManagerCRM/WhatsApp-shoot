@@ -37,6 +37,7 @@ class SettingsStore(context: Context) {
             .putString("folders", next.screenshotFolders.joinToString("|"))
             .putBoolean("fullAuto", next.fullyAutomaticSend)
             .putBoolean("landingFirst", next.landingGalleryFirst)
+            .putInt("settingsVersion", 2)
             .apply()
         _flow.value = next
     }
@@ -54,7 +55,8 @@ class SettingsStore(context: Context) {
             retentionMs = prefs.getLong("retention", d.retentionMs),
             deleteWhenWorkflowEnds = prefs.getBoolean("deleteOnEnd", d.deleteWhenWorkflowEnds),
             directSelectExperimental = prefs.getBoolean("directSelect", d.directSelectExperimental),
-            imageSource = enumOf(prefs.getString("source", null), d.imageSource),
+            // Version 1 stored the old default (Screenshots folder); the WhatsApp-gallery source is the new default for everyone once.
+            imageSource = if (prefs.getInt("settingsVersion", 1) < 2) d.imageSource else enumOf(prefs.getString("source", null), d.imageSource),
             sendBehavior = enumOf(prefs.getString("behavior", null), d.sendBehavior),
             screenshotFolders = prefs.getString("folders", null)?.split('|')?.filter { it.isNotBlank() }?.ifEmpty { null } ?: d.screenshotFolders,
             fullyAutomaticSend = prefs.getBoolean("fullAuto", d.fullyAutomaticSend),

@@ -280,6 +280,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
 
     private var lastDriveTrace = ""
     private var lastLabels = ""
+    private var lastSendCands = ""
 
     private fun driveShareFlow(pkg: String) {
         val c = graph.controller
@@ -287,7 +288,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         if (root.packageName?.toString() != pkg) return
         val sc = scan(root, retain = true)
-        if (c.attachFlowActive) { driveAttachFlow(c, sc); return }
+        if (c.attachFlowActive) { driveAttachFlow(c, sc, pkg, root); return }
         val cls = lastWindowClass
         val send = findSendButton(sc)
         val kind = graph.classifier.classify(ScreenSnapshot(pkg, sc.ids, sc.header, cls, hasEditableInput = sc.editable, topTitle = sc.title)).kind
@@ -359,10 +360,36 @@ class WhatsAppAccessibilityService : AccessibilityService() {
 
     private fun lc(s: String?) = s?.trim()?.lowercase().orEmpty()
 
-    private fun driveAttachFlow(c: com.smartmanager.whatsappshoot.logic.AutomationController, sc: Scan) {
+    private fun driveAttachFlow(c: com.smartmanager.whatsappshoot.logic.AutomationController, primary: Scan, pkg: String, root: AccessibilityNodeInfo) {
         val w = resources.displayMetrics.widthPixels
         val h = resources.displayMetrics.heightPixels
-        val chatVisible = sc.editable && c.expectedTitleMatches(sc.header ?: sc.title)
+        // WhatsApp's album dropdown is a popup window of its own: merge every WhatsApp window so its entries (and the chat behind it) are seen.
+        val sc = primary
+        val primaryIsPopup = "entry" !in primary.ids && "grid" !in primary.ids
+        var popupScroll: AccessibilityNodeInfo? = null
+        try {
+            for (win in windows.orEmpty()) {
+                val r = win.root ?: continue
+                if (r.packageName?.toString() != pkg || r == root) continue
+                val other = scan(r, retain = true)
+                val isConversationWindow = "entry" in other.ids || "input_attach_button" in other.ids || "grid" in other.ids
+                if (!isConversationWindow && other.scrollNode != null) popupScroll = other.scrollNode
+                sc.ids += other.ids; sc.labels += other.labels; sc.texts += other.texts; sc.clicks += other.clicks
+                sc.editable = sc.editable || other.editable
+                if (sc.header == null) sc.header = other.header
+                if (sc.title == null) sc.title = other.title
+                if (sc.sendNode == null) sc.sendNode = other.sendNode
+                sc.outgoing += other.outgoing
+            }
+        } catch (e: Exception) { /* windows API unavailable: fall back to the active window only */ }
+        // If the dropdown is the active window itself, its list is the primary scan's scroll area.
+        if (popupScroll == null && primaryIsPopup) popupScroll = primary.scrollNode
+
+        val menuOpen = "pickfiletype_gallery_holder" in sc.ids
+        val pickerOpen = "media_item_view" in sc.ids || "gallery_view_pager" in sc.ids
+        val chatVisible = sc.editable && !menuOpen && !pickerOpen && c.expectedTitleMatches(sc.header ?: sc.title)
+        // While the gallery is open the chat's own title and message box are still on screen: that is the chat BEHIND the gallery.
+        val chatBehind = sc.editable && c.expectedTitleMatches(sc.header ?: sc.title)
 
         val attach = sc.clicks.firstOrNull { it.id in ATTACH_IDS }?.node
             ?: sc.clicks.firstOrNull { ci -> lc(ci.desc).let { d -> d.isNotEmpty() && ATTACH_WORDS.any { d.contains(it) } } }?.node
@@ -370,41 +397,58 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             ?: sc.texts.firstOrNull { t -> lc(t.first).let { it in GALLERY_WORDS } }?.second
             ?: sc.clicks.firstOrNull { ci -> lc(ci.desc).let { it in GALLERY_WORDS } }?.node
         val names = c.albumNames().map { lc(it) } + (if (c.albumNames().any { lc(it) == "screenshots" }) SCREENSHOT_WORDS else emptyList())
-        val album = if (chatVisible) null else sc.labels.firstOrNull { t -> lc(t.first).let { x -> x.isNotEmpty() && names.any { n -> x == n || (x.contains(n) && x.length <= n.length + 14) } } }?.second
-        val switcher = if (chatVisible) null else sc.labels.firstOrNull { t -> lc(t.first) in ALBUM_SWITCH_WORDS }?.second
-        val thumb = if (chatVisible) null else sc.clicks.filter { ci ->
-            ci.rect.width() in (w * 0.15).toInt()..(w * 0.6).toInt() && ci.rect.height() in (ci.rect.width() * 0.6).toInt()..(ci.rect.width() * 1.7).toInt() &&
-                ci.rect.top >= h * 0.12 && lc(ci.desc).let { d -> CAMERA_WORDS.none { d.contains(it) } } &&
-                ci.cls?.let { it.endsWith("ImageView") || it.endsWith("View") || it.endsWith("FrameLayout") || it.endsWith("ImageButton") } == true
+        fun isAlbum(x: String) = x.isNotEmpty() && names.any { n -> x == n || (x.contains(n) && x.length <= n.length + 14) }
+
+        // The dropdown control and the album it currently shows (a label inside the control's bounds).
+        val spinner = sc.clicks.firstOrNull { it.id in SPINNER_IDS }
+        val spinnerRect = spinner?.rect
+        val currentAlbumOk = spinnerRect != null && sc.labels.any { (t, n) ->
+            val r = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+            isAlbum(lc(t)) && spinnerRect.contains(r.centerX(), r.centerY())
+        } || (spinner != null && isAlbum(lc(spinner.desc)))
+        val albumItem = sc.labels.firstOrNull { (t, n) ->
+            val r = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+            isAlbum(lc(t)) && (spinnerRect == null || !spinnerRect.contains(r.centerX(), r.centerY()))
+        }?.second
+        // Gallery tiles only (the chat's own media thumbnails use other ids); the camera tile is excluded.
+        val thumb = if (!pickerOpen) null else sc.clicks.filter { ci ->
+            ci.id in TILE_IDS && lc(ci.desc).let { d -> CAMERA_WORDS.none { d.contains(it) } } && ci.rect.top >= h * 0.12 && ci.rect.bottom <= h
         }.minWithOrNull(compareBy<ClickInfo>({ it.rect.top }, { it.rect.left }))?.node
-        val send = findSendButton(sc, strict = true)
+        // Send: WhatsApp's own id or a "send" label only. Position-based guesses are NOT used here: the chat's camera button sits in the same corner.
+        val send = sc.sendNode?.let { it to "id" }
+            ?: sc.clicks.firstOrNull { ci -> lc(ci.desc).let { d -> d.isNotEmpty() && SEND_WORDS.any { w2 -> d.contains(w2) } } }?.let { it.node to "label" }
 
         val view = com.smartmanager.whatsappshoot.logic.AttachScreenView(
             chatVisible = chatVisible, attachButton = attach != null, galleryEntry = gallery != null,
-            albumLabel = album != null, albumsSwitcher = switcher != null, thumbnail = thumb != null,
-            sendButton = send != null, canScroll = sc.scrollNode != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null,
+            pickerOpen = pickerOpen, albumSelected = currentAlbumOk, albumLabel = albumItem != null,
+            albumsSwitcher = spinner != null, thumbnail = thumb != null, sendButton = send != null,
+            canScroll = popupScroll != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null,
         )
-        if (!chatVisible && album == null) {
-            // Gallery/album names only (this is WhatsApp's media picker, not a conversation): helps to see how an album is labelled.
+        if (pickerOpen && !currentAlbumOk) {
+            // Gallery album names only (WhatsApp's media picker, not a conversation): shows how the albums are labelled.
             val seen = sc.labels.map { it.first.trim() }.filter { it.length in 2..28 }.distinct().take(24).joinToString(" | ")
             if (seen.isNotEmpty() && seen != lastLabels) { lastLabels = seen; ActivityLog.add("picker labels: $seen") }
         }
-        val trace = "screen: class=${lastWindowClass ?: "?"} chat=$chatVisible editable=${sc.editable} send=${send?.second ?: "none"}"
+        if (pickerOpen && thumb != null && send == null) {
+            val cands = sc.clicks.filter { it.rect.centerY() > h * 0.7 }.take(8).joinToString(" ; ") { "${it.id ?: "-"}|${it.cls?.substringAfterLast('.') ?: "?"}|${lc(it.desc).take(16)}" }
+            if (cands != lastSendCands) { lastSendCands = cands; ActivityLog.add("lower controls: $cands") }
+        }
+        val trace = "screen: class=${lastWindowClass ?: "?"} chat=$chatVisible behind=$chatBehind menu=$menuOpen picker=$pickerOpen send=${send?.second ?: "none"}"
         if (trace != lastDriveTrace) { ActivityLog.add(trace); lastDriveTrace = trace }
         val a = c.attachStep(view) ?: return
         val ok: Boolean? = when (a) {
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickAttach -> clickAncestor(attach)
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickGallery -> clickAncestor(gallery)
-            com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbum -> clickAncestor(album)
-            com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbumsSwitcher -> clickAncestor(switcher)
+            com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbum -> clickAncestor(albumItem)
+            com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbumsSwitcher -> clickAncestor(spinner?.node)
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickThumbnail -> clickAncestor(thumb)
-            com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker -> sc.scrollNode?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
-            // The only place WhatsApp's Send button is tapped: opt-in setting, verified chat, picture chosen from the screenshots album.
+            com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker -> popupScroll?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
+            // The only place WhatsApp's Send button is tapped: opt-in setting, verified chat, picture chosen from the verified album.
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickSend -> clickAncestor(send?.first)
             else -> null
         }
         if (ok != null) {
-            ActivityLog.add("clicked ${a::class.simpleName}: $ok")
+            ActivityLog.add("clicked ${a.javaClass.simpleName}: $ok")
             if (!ok && a != com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker) c.attachClickFailed(a)
         }
     }
@@ -450,13 +494,15 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val MAX_NODES = 600
         private const val MAX_REPORT_NODES = 160
         private const val MAX_TEXTS = 300
-        private const val MAX_CLICKS = 200
+        private const val MAX_CLICKS = 400
         private const val MIN_LIST_ROWS = 3
         private const val MAX_EMPTY_RETRIES = 6
         private const val EMPTY_RETRY_MS = 350L
         private const val SHARE_TICK_MS = 400L
         private val ATTACH_IDS = setOf("input_attach_button", "attach_button", "attach")
         private val GALLERY_IDS = setOf("pickfiletype_gallery_holder")
+        private val SPINNER_IDS = setOf("gallery_spinner")
+        private val TILE_IDS = setOf("media_item_view")
         private val ATTACH_WORDS = listOf("attach", "إرفاق", "ارفاق", "adjuntar", "anexar", "joindre", "anhängen", "allega", "ekle", "lampirkan", "прикрепить", "附件", "添付", "첨부")
         private val GALLERY_WORDS = setOf("gallery", "photos", "photos & videos", "photos and videos", "معرض الصور", "المعرض", "معرض", "galería", "galeria", "galerie", "galleria", "galerij", "galeri", "галерея", "图库", "相册", "ギャラリー", "갤러리", "fotos")
         private val SCREENSHOT_WORDS = listOf("screenshots", "لقطات الشاشة", "لقطات", "capturas de pantalla", "capturas de tela", "captures d'écran", "bildschirmfotos", "screenshot", "istantanee", "ekran görüntüleri", "снимки экрана", "截图", "スクリーンショット", "스크린샷")

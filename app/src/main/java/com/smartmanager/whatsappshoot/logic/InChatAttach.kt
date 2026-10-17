@@ -5,19 +5,26 @@ package com.smartmanager.whatsappshoot.logic
  * The destination is the chat that is already open, so no recipient list is involved.
  */
 data class AttachScreenView(
-    /** The verified chat is in front: its title at the top and a message box. */
+    /**
+     * The verified chat is in front AND nothing is laid over it (no attach menu, no gallery panel). WhatsApp Business shows its gallery
+     * as a panel inside the chat, so the chat's title and message box stay visible while the gallery is open.
+     */
     val chatVisible: Boolean,
     val attachButton: Boolean = false,
     /** The "Gallery" entry of the attach menu is visible. */
     val galleryEntry: Boolean = false,
-    /** A "Screenshots" (or configured folder) album label is visible. */
+    /** WhatsApp's gallery (picture grid) is open. */
+    val pickerOpen: Boolean = false,
+    /** The gallery's album dropdown shows the wanted album (e.g. "Screenshots") as the current one. */
+    val albumSelected: Boolean = false,
+    /** The wanted album is listed as a choice (the dropdown is open). */
     val albumLabel: Boolean = false,
-    /** An "Albums"-style switcher is visible (used only to reveal the album label). */
+    /** The gallery's album dropdown control is available. */
     val albumsSwitcher: Boolean = false,
-    /** A picture thumbnail is available to tap (camera tile excluded). */
+    /** A picture tile of the gallery grid is available to tap (camera tile excluded). */
     val thumbnail: Boolean = false,
     val sendButton: Boolean = false,
-    /** The picker can be scrolled further (the album may be below the visible part). */
+    /** The open dropdown list can be scrolled further. */
     val canScroll: Boolean = false,
     val outgoingMediaCount: Int? = null,
 )
@@ -30,22 +37,22 @@ sealed class AttachAction {
     object ClickAlbumsSwitcher : AttachAction()
     object ClickThumbnail : AttachAction()
 
-    /** Scroll the gallery forward one page to reveal the album. */
+    /** Scroll the open album list forward one page. */
     object ScrollPicker : AttachAction()
 
-    /** Only ever produced after the image was picked from the screenshots album, and never while the chat itself is in front. */
+    /** Only ever produced after the image was picked from the verified album, and never while the chat itself is in front. */
     object ClickSend : AttachAction()
     data class Done(val outcome: ShareOutcome) : AttachAction()
 }
 
 /**
- * Sends the staged screenshot from inside the already-open chat: attach (+) -> Gallery -> Screenshots album -> newest picture -> Send.
+ * Sends the staged screenshot from inside the already-open chat: attach (+) -> Gallery -> album dropdown -> Screenshots -> newest picture -> Send.
  * Pure decision logic (timing via [Clock]); the Android layer reports what it sees and performs the returned click.
  *
  * Safety rules enforced here (and tested):
  *  - the flow only starts while the verified chat is in front, so the destination is the chat itself;
- *  - a picture is chosen only after the Screenshots album was opened (otherwise a newer photo or received image could be sent);
- *  - Send is clicked only after a picture was chosen and never while the chat screen is in front (that button is the voice-note button);
+ *  - a picture is chosen only after the gallery's album dropdown shows the Screenshots album (otherwise a newer photo or a received image could be sent);
+ *  - Send is clicked only after a picture was chosen and never while the chat itself is in front;
  *  - success is [ShareOutcome.SENT_CONFIRMED] only if the chat shows MORE outgoing media than before; otherwise SENT_UNCONFIRMED.
  */
 class AttachFlowEngine(
@@ -58,8 +65,10 @@ class AttachFlowEngine(
     private var phaseSince = -1L
     private var lastClickAt = -1_000_000L
     private var attachClicks = 0
-    private var albumClicked = false
-    private var switcherClicked = false
+    private var albumClicks = 0
+    private var switcherClicks = 0
+    private var lastSwitcherAt = -1_000_000L
+    private var albumVerifiedAt = -1L
     private var sendClicks = 0
     private var chatBackAt = -1L
     private var scrolls = 0
@@ -84,7 +93,7 @@ class AttachFlowEngine(
             Phase.AWAIT_RESULT -> awaitResult(v, now)
             Phase.FINISHED -> AttachAction.Wait
         }
-        note = "phase=$phase attach=${v.attachButton} gallery=${v.galleryEntry} album=${v.albumLabel} thumb=${v.thumbnail} send=${v.sendButton} chat=${v.chatVisible}"
+        note = "phase=$phase chat=${v.chatVisible} attach=${v.attachButton} gallery=${v.galleryEntry} open=${v.pickerOpen} albumSel=${v.albumSelected} album=${v.albumLabel} spinner=${v.albumsSwitcher} thumb=${v.thumbnail} send=${v.sendButton}"
         return a
     }
 
@@ -116,16 +125,26 @@ class AttachFlowEngine(
 
     private fun awaitPicker(v: AttachScreenView, now: Long): AttachAction {
         if (!settled(now)) return AttachAction.Wait
-        if (!albumClicked) {
+        // 1. The album must be the wanted one, as shown by the gallery itself.
+        if (!v.albumSelected) {
+            albumVerifiedAt = -1
             when {
-                v.albumLabel -> { albumClicked = true; phaseSince = now; return click(AttachAction.ClickAlbum, now) }
-                v.albumsSwitcher && !switcherClicked -> { switcherClicked = true; return click(AttachAction.ClickAlbumsSwitcher, now) }
+                v.albumLabel && albumClicks < MAX_ALBUM_CLICKS -> { albumClicks++; return click(AttachAction.ClickAlbum, now) }
+                v.albumsSwitcher && v.pickerOpen && !v.albumLabel && switcherClicks < MAX_SWITCHER_CLICKS && now - lastSwitcherAt >= SWITCHER_RETRY_MS -> {
+                    switcherClicks++; lastSwitcherAt = now
+                    return click(AttachAction.ClickAlbumsSwitcher, now)
+                }
+                // The album list is open but the album is further down.
+                v.albumLabel.not() && switcherClicks > 0 && v.canScroll && now - lastSwitcherAt >= ALBUM_LOOK_MS && scrolls < MAX_SCROLLS -> {
+                    scrolls++; return click(AttachAction.ScrollPicker, now)
+                }
             }
-            // The album may simply be further down the gallery: look at the visible part first, then page through.
-            if (now - phaseSince > ALBUM_LOOK_MS && v.canScroll && scrolls < MAX_SCROLLS) { scrolls++; return click(AttachAction.ScrollPicker, now) }
-            return if (now - phaseSince > PICKER_PATIENCE_MS + scrolls * CLICK_GAP_MS) finish(ShareOutcome.ABORT_NO_ALBUM) else AttachAction.Wait
+            return if (now - phaseSince > PICKER_PATIENCE_MS) finish(ShareOutcome.ABORT_NO_ALBUM) else AttachAction.Wait
         }
-        if (v.thumbnail) {
+        // 2. Album verified: let the grid reload, then take the newest picture.
+        if (albumVerifiedAt < 0) { albumVerifiedAt = now; phaseSince = now }
+        if (now - albumVerifiedAt < ALBUM_SETTLE_MS) return AttachAction.Wait
+        if (v.thumbnail && v.pickerOpen) {
             go(Phase.AWAIT_SEND, now)
             return click(AttachAction.ClickThumbnail, now)
         }
@@ -170,8 +189,12 @@ class AttachFlowEngine(
         const val CLICK_GAP_MS = 700L
         const val OPEN_PATIENCE_MS = 6_000L
         const val MENU_PATIENCE_MS = 3_000L
-        const val PICKER_PATIENCE_MS = 6_000L
-        const val ALBUM_LOOK_MS = 2_000L
+        const val PICKER_PATIENCE_MS = 10_000L
+        const val ALBUM_LOOK_MS = 1_500L
+        const val ALBUM_SETTLE_MS = 1_000L
+        const val SWITCHER_RETRY_MS = 2_500L
+        const val MAX_SWITCHER_CLICKS = 3
+        const val MAX_ALBUM_CLICKS = 3
         const val MAX_SCROLLS = 6
         const val SEND_PATIENCE_MS = 6_000L
         const val RESULT_GRACE_MS = 3_000L

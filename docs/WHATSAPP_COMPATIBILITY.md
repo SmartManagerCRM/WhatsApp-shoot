@@ -59,3 +59,14 @@ Real-phone result for 1.0.4: the app opened WhatsApp's gallery but did not find 
   its last segment is the album name the app looks for in WhatsApp's gallery. (WhatsApp's picker lists albums by name, so a path cannot be handed to it directly.)
 - Album labels are now also read from content descriptions of any node, and the gallery is scrolled (up to 6 pages) to reveal the album.
 - When the album is not found, the activity log lists the labels seen in the gallery ("picker labels: ..."; gallery album names only), so the matching can be corrected.
+
+### v1.0.6: calibrated on a real WhatsApp Business screen dump (2.26.34.74, Android 16)
+The 1.0.5 report showed how WhatsApp Business actually builds its attach UI:
+- the attach menu (`pickfiletype_*_holder`) and the gallery (`gallery_view_pager`, `grid`, tiles `media_item_view`) are **panels inside the chat window**
+  (window class stays `com.whatsapp.Conversation`), so the chat's title and message box remain on screen. "Chat in front" therefore now also requires that no menu/gallery is open;
+  the earlier version thought the chat was still in front and never looked for albums.
+- albums are chosen from a dropdown (`gallery_spinner`); the album names exist only inside the opened dropdown (a popup window). The app now scans every WhatsApp window,
+  taps the dropdown, taps the wanted album, and **verifies the dropdown now shows that album** before it taps the first tile (`media_item_view`) of the grid.
+- the chat's own media thumbnails (`thumb`) are never used as gallery tiles.
+- Send is found only by WhatsApp's id (`send`) or a "send" label. The position-based guess used for the share sheet is NOT used in the gallery flow: in the chat the camera button sits in the same corner.
+- if no Send control is identified, the log prints the lower on-screen controls ("lower controls: …") so the id can be added.

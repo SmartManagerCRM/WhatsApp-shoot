@@ -262,8 +262,9 @@ class LatestWorkflowTest {
     private fun LatestRig.list(vararg t: String) = controller.shareStep(ShareScreenView(ShareStage.SHARE_LIST, rowTitles = t.toList()))
     private fun LatestRig.preview(recipient: String?) = controller.shareStep(ShareScreenView(ShareStage.SHARE_PREVIEW, previewRecipient = recipient, sendButtonAvailable = true))
     private fun LatestRig.chatView(outgoing: Int?, attach: Boolean = true) = controller.attachStep(AttachScreenView(chatVisible = true, attachButton = attach, outgoingMediaCount = outgoing))
-    private fun LatestRig.menu() = controller.attachStep(AttachScreenView(chatVisible = true, galleryEntry = true))
-    private fun LatestRig.picker(album: Boolean = false, thumb: Boolean = false) = controller.attachStep(AttachScreenView(chatVisible = false, albumLabel = album, thumbnail = thumb))
+    private fun LatestRig.menu() = controller.attachStep(AttachScreenView(chatVisible = false, galleryEntry = true))
+    private fun LatestRig.gallery(selected: Boolean = false, dropdown: Boolean = false, spinner: Boolean = true) =
+        controller.attachStep(AttachScreenView(chatVisible = false, pickerOpen = true, albumSelected = selected, albumLabel = dropdown, albumsSwitcher = spinner, thumbnail = true))
     private fun LatestRig.sendScreen() = controller.attachStep(AttachScreenView(chatVisible = false, sendButton = true))
     private fun LatestRig.tick() = clock.advance(AttachFlowEngine.CLICK_GAP_MS + 100)
 
@@ -271,8 +272,11 @@ class LatestWorkflowTest {
     private fun LatestRig.driveToSend() {
         assertEquals(AttachAction.ClickAttach, chatView(4)); tick()
         assertEquals(AttachAction.ClickGallery, menu()); tick()
-        assertEquals(AttachAction.ClickAlbum, picker(album = true)); tick()
-        assertEquals(AttachAction.ClickThumbnail, picker(thumb = true)); tick()
+        assertEquals(AttachAction.ClickAlbumsSwitcher, gallery()); tick()
+        assertEquals(AttachAction.ClickAlbum, gallery(dropdown = true)); tick()
+        clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100); gallery(selected = true)
+        clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100)
+        assertEquals(AttachAction.ClickThumbnail, gallery(selected = true)); tick()
         assertEquals(AttachAction.ClickSend, sendScreen())
     }
 
@@ -300,9 +304,9 @@ class LatestWorkflowTest {
     @Test fun fullAutoSend_noScreenshotsAlbum_abortsWithoutSending() {
         val r = autoRig(); r.open("Alice", outgoing = 0)
         r.chatView(0); r.tick(); r.menu(); r.tick()
-        r.picker(thumb = true) // thumbnails but no Screenshots album: must NOT pick an arbitrary newest picture
-        r.clock.advance(AttachFlowEngine.PICKER_PATIENCE_MS + 100)
-        assertEquals(AttachAction.Done(ShareOutcome.ABORT_NO_ALBUM), r.picker(thumb = true))
+        var last: AttachAction? = null
+        repeat(40) { r.clock.advance(500); last = r.gallery().also { a -> assertTrue(a !is AttachAction.ClickThumbnail) } .takeIf { a -> a is AttachAction.Done } ?: last }
+        assertEquals(AttachAction.Done(ShareOutcome.ABORT_NO_ALBUM), last)
         assertEquals(MANUAL_ACTION_REQUIRED, r.state); assertEquals(StatusMessage.AUTO_SEND_NO_ALBUM, r.message)
         assertEquals("nothing was handed off, so nothing is recorded", 0, r.ledger.size())
     }

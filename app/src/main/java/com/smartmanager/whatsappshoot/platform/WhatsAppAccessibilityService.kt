@@ -71,6 +71,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
 
     // While a share flow is running, look at WhatsApp every few hundred ms instead of waiting for the next accessibility event:
     // a screen that finished loading after the last event would otherwise never be noticed.
+    private var emptyRetries = 0
     private var tickerRunning = false
     private val shareTick = object : Runnable {
         override fun run() {
@@ -99,6 +100,13 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         } else {
             ScreenSnapshot(pkg) // other apps: package name only
         }
+        if (pkg in profile.packages && snapshot.viewIds.isEmpty() && !snapshot.hasEditableInput && emptyRetries < MAX_EMPTY_RETRIES) {
+            // WhatsApp's window exists but its views are not built yet: look again shortly instead of reacting to an empty screen.
+            emptyRetries++
+            main.postDelayed(evaluate, EMPTY_RETRY_MS)
+            return
+        }
+        emptyRetries = 0
         if (pkg in profile.packages) {
             val kind = graph.classifier.classify(snapshot).kind.name
             graph.lastScreen.value = "$kind (${lastWindowClass ?: "?"})"
@@ -119,6 +127,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         var sendNode: AccessibilityNodeInfo? = null,
         var outgoing: Int = 0,
         val texts: ArrayList<Pair<String, AccessibilityNodeInfo>> = ArrayList(),
+        var scrollNode: AccessibilityNodeInfo? = null,
+        var scrollArea: Long = 0,
         val clicks: ArrayList<ClickInfo> = ArrayList(),
         val nodes: ArrayList<String> = ArrayList(),
         var editable: Boolean = false,
@@ -146,6 +156,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             if (n.isEditable) r.editable = true
             if (retain && n.isVisibleToUser) {
                 if (hasText && cls != null && cls.endsWith("TextView") && r.texts.size < MAX_TEXTS) r.texts += n.text.toString() to n
+                if (n.isScrollable && rect.width().toLong() * rect.height() > r.scrollArea) { r.scrollNode = n; r.scrollArea = rect.width().toLong() * rect.height() }
                 if (n.isClickable && n.isEnabled && r.clicks.size < MAX_CLICKS) r.clicks += ClickInfo(n, n.contentDescription?.toString(), cls, rect)
             }
             if (n !== root && cls != null && cls.endsWith("TextView") && hasText && rect.top >= 0 && rect.top < screenH * 0.2) {
@@ -275,28 +286,35 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         // Stage detection does not rely on WhatsApp's internal names (they are not known to be stable). The verified chat's own title at
         // the top identifies the chat itself; a message box plus a send-like button without that title is the "send" preview; a screen of
         // text rows without a message box is the recipient list.
+        val inPicker = cls != null && (cls in profile.shareListClasses || cls in profile.sharePreviewClasses)
         val stage = when {
-            cls != null && cls in profile.shareListClasses -> ShareStage.SHARE_LIST
-            cls != null && cls in profile.sharePreviewClasses -> ShareStage.SHARE_PREVIEW
+            // Back in the verified chat (its own title at the top plus a message box).
             sc.editable && c.expectedTitleMatches(sc.header ?: sc.title) -> ShareStage.CONVERSATION
             kind == ScreenKind.CONVERSATION && c.expectedTitleMatches(sc.header ?: sc.title) -> ShareStage.CONVERSATION
+            // WhatsApp shows its send bar (recipient label + Send button) inside the same picker screen once a chat is selected.
+            inPicker && send != null -> ShareStage.SHARE_PREVIEW
+            inPicker -> ShareStage.SHARE_LIST
             sc.editable && send != null -> ShareStage.SHARE_PREVIEW
             !sc.editable && sc.texts.size >= MIN_LIST_ROWS -> ShareStage.SHARE_LIST
             else -> ShareStage.OTHER
         }
-        val useIdRows = sc.rowTitles.isNotEmpty()
+        val useIdRows = sc.texts.isEmpty() && sc.rowTitles.isNotEmpty()
         val rowTitles: List<String?> = if (useIdRows) sc.rowTitles else sc.texts.map { it.first }
         val rowNodes: List<AccessibilityNodeInfo> = if (useIdRows) sc.rowNodes else sc.texts.map { it.second }
         val view = ShareScreenView(
             stage = stage, rowTitles = rowTitles, previewRecipient = sc.recipient, sendButtonAvailable = send != null,
             conversationHeader = sc.header ?: sc.title, outgoingMediaCount = if (stage == ShareStage.CONVERSATION) sc.outgoing else null,
-            visibleTexts = sc.texts.map { it.first },
+            visibleTexts = sc.texts.map { it.first }, canScroll = sc.scrollNode != null,
         )
         val trace = "screen: stage=$stage class=${cls ?: "?"} editable=${sc.editable} send=${send?.second ?: "none"}"
         if (trace != lastDriveTrace) { ActivityLog.add(trace); lastDriveTrace = trace }
         when (val a = c.shareStep(view)) {
             is ShareAction.ClickRow -> {
                 if (clickAncestor(rowNodes.getOrNull(a.index))) c.shareClickPerformed() else c.onShareOutcome(ShareOutcome.ABORT_NOT_FOUND)
+            }
+            ShareAction.ScrollList -> {
+                val ok = sc.scrollNode?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
+                ActivityLog.add("scrolling the recipient list ($ok)")
             }
             // The only place WhatsApp's Send button is ever tapped: opt-in setting, verified chat, recipient matched on WhatsApp's own screen.
             is ShareAction.ClickSend -> {
@@ -366,6 +384,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val MAX_TEXTS = 300
         private const val MAX_CLICKS = 200
         private const val MIN_LIST_ROWS = 3
+        private const val MAX_EMPTY_RETRIES = 6
+        private const val EMPTY_RETRY_MS = 350L
         private const val SHARE_TICK_MS = 400L
         private val SEND_WORDS = listOf("send", "إرسال", "ارسال", "enviar", "envoyer", "senden", "invia", "gönder", "kirim", "отправить", "发送", "送信", "보내기")
     }

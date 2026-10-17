@@ -21,8 +21,12 @@ class ShareFlowTest {
 
     @Test fun ambiguousOrMissingRowAborts() {
         assertEquals(ShareOutcome.ABORT_AMBIGUOUS, done(ShareFlowEngine(alice, h, true, 0).step(list("Alice", "ALICE"))))
-        assertEquals(ShareOutcome.ABORT_NOT_FOUND, done(ShareFlowEngine(alice, h, true, 0).step(list("Bob"))))
         assertEquals(ShareOutcome.ABORT_NOT_FOUND, done(ShareFlowEngine(h.identityOf(null), h, true, 0).step(list("Alice"))))
+        // a list that simply does not contain the chat is only given up on after it had time to load
+        val clock = FakeClock(); val e = ShareFlowEngine(alice, h, true, 0, clock)
+        assertEquals(ShareAction.Wait, e.step(list("Bob")))
+        clock.advance(ShareFlowEngine.LOAD_MS + ShareFlowEngine.SETTLE_MS + 1)
+        assertEquals(ShareOutcome.ABORT_NOT_FOUND, done(e.step(list("Bob"))))
     }
 
     @Test fun fullSend_onlyAfterRecipientMatches_thenConfirmedByMoreOutgoingMedia() {
@@ -105,5 +109,66 @@ class ShareFlowTest {
         val e = ShareFlowEngine(alice, h, allowSend = false, baselineOutgoing = 0)
         e.step(list("Alice")); e.afterClick()
         for (v in listOf(preview("Alice"), chat("Alice", 9), list("Alice"))) assertNotEquals(ShareAction.ClickSend, e.step(v))
+    }
+
+    // ---- behaviour observed on a real phone: the recipient list fills in after the screen opens ----
+    private fun scrollable(vararg titles: String?, canScroll: Boolean = true) = ShareScreenView(ShareStage.SHARE_LIST, rowTitles = titles.toList(), canScroll = canScroll)
+
+    @Test fun aListThatIsStillLoading_isNeverJudged_andTheChatIsFoundOnceItAppears() {
+        val clock = FakeClock(); val e = ShareFlowEngine(alice, h, true, 0, clock)
+        assertEquals(ShareAction.Wait, e.step(scrollable("Recent chats")))               // only a header and a placeholder so far
+        clock.advance(2_000); assertEquals(ShareAction.Wait, e.step(scrollable("Recent chats")))
+        clock.advance(200);   assertEquals(ShareAction.ClickRow(2), e.step(scrollable("Recent chats", "Bob", "Alice")))
+    }
+
+    @Test fun chatBelowTheVisibleRows_isFoundByScrolling() {
+        val clock = FakeClock(); val e = ShareFlowEngine(alice, h, true, 0, clock)
+        e.step(scrollable("Recent chats", "Bob", "Carol"))
+        clock.advance(ShareFlowEngine.LOAD_MS + ShareFlowEngine.SETTLE_MS + 1)
+        assertEquals(ShareAction.ScrollList, e.step(scrollable("Recent chats", "Bob", "Carol")))
+        clock.advance(100)
+        // once the chat is visible it is clicked right away (a click targets the row itself, not a screen position)
+        assertEquals(ShareAction.ClickRow(2), e.step(scrollable("Dave", "Erin", "Alice")))
+    }
+
+    @Test fun reachingTheEndOfTheListWithoutTheChat_stopsInsteadOfScrollingForever() {
+        val clock = FakeClock(); val e = ShareFlowEngine(alice, h, true, 0, clock)
+        val rows = arrayOf<String?>("Bob", "Carol", "Dave")
+        e.step(scrollable(*rows)); clock.advance(ShareFlowEngine.LOAD_MS + ShareFlowEngine.SETTLE_MS + 1)
+        assertEquals(ShareAction.ScrollList, e.step(scrollable(*rows)))
+        clock.advance(ShareFlowEngine.SETTLE_MS + 1)                                   // scrolled, but the rows did not change: end of list
+        assertEquals(ShareOutcome.ABORT_NOT_FOUND, done(e.step(scrollable(*rows))))
+    }
+
+    @Test fun neverScrollsMoreThanTheLimit() {
+        val clock = FakeClock(); val e = ShareFlowEngine(alice, h, true, 0, clock)
+        e.step(scrollable("r0")); clock.advance(ShareFlowEngine.LOAD_MS + ShareFlowEngine.SETTLE_MS + 1)
+        var scrolls = 0
+        for (page in 1..20) {
+            val a = e.step(scrollable("r$page", "x$page"))
+            if (a == ShareAction.ScrollList) { scrolls++; clock.advance(ShareFlowEngine.SETTLE_MS + 1) } else if (a is ShareAction.Done) break else clock.advance(ShareFlowEngine.SETTLE_MS + 1)
+        }
+        assertTrue("scrolls=$scrolls", scrolls <= ShareFlowEngine.MAX_SCROLLS)
+    }
+
+    @Test fun recipientLabelMustNameExactlyTheVerifiedChat() {
+        fun run(label: String): ShareAction {
+            val e = ShareFlowEngine(alice, h, true, 1); e.step(list("Alice"))
+            return e.step(ShareScreenView(ShareStage.SHARE_PREVIEW, previewRecipient = label, sendButtonAvailable = true))
+        }
+        assertEquals(ShareAction.ClickSend, run("Alice"))
+        assertEquals(ShareAction.ClickSend, run("  alice "))
+        assertEquals(ShareAction.Done(ShareOutcome.ABORT_RECIPIENT_MISMATCH), run("Alice, Bob"))   // an extra recipient is never acceptable
+        assertEquals(ShareAction.Done(ShareOutcome.ABORT_RECIPIENT_MISMATCH), run("Bob"))
+        assertEquals(ShareAction.Done(ShareOutcome.ABORT_RECIPIENT_MISMATCH), run("Alice\u060C Bob"))
+    }
+
+    @Test fun theWholeFlowOnOneScreenClass_listThenSendBarThenBackInTheChat() {
+        // WhatsApp keeps list and send bar in the same activity; only the presence of the send bar tells the stages apart.
+        val clock = FakeClock(); val e = ShareFlowEngine(alice, h, true, 2, clock)
+        assertEquals(ShareAction.ClickRow(1), e.step(scrollable("Bob", "Alice", "Carol")))
+        assertEquals(ShareAction.Wait, e.step(scrollable("Bob", "Alice", "Carol")))                  // click registered, bar not shown yet
+        assertEquals(ShareAction.ClickSend, e.step(ShareScreenView(ShareStage.SHARE_PREVIEW, previewRecipient = "Alice", sendButtonAvailable = true)))
+        assertEquals(ShareOutcome.SENT_CONFIRMED, done(e.step(ShareScreenView(ShareStage.CONVERSATION, conversationHeader = "Alice", outgoingMediaCount = 3))))
     }
 }

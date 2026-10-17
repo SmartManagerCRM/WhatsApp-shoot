@@ -64,10 +64,10 @@ data class WhatsAppProfile(
     val packages: Set<String> = setOf("com.whatsapp", "com.whatsapp.w4b"),
     val ignoredPackages: Set<String> = setOf("com.android.systemui"),
     val conversationClasses: Set<String> = setOf("com.whatsapp.Conversation"),
-    val chatListClasses: Set<String> = setOf("com.whatsapp.HomeActivity"),
+    val chatListClasses: Set<String> = setOf("com.whatsapp.HomeActivity", "com.whatsapp.home.ui.HomeActivity"),
     val settingsClasses: Set<String> = setOf("com.whatsapp.settings.Settings", "com.whatsapp.SettingsActivity"),
     val mediaViewerClasses: Set<String> = setOf("com.whatsapp.mediaview.MediaView", "com.whatsapp.MediaView"),
-    val pickerClasses: Set<String> = setOf("com.whatsapp.gallerypicker.GalleryPicker", "com.whatsapp.documentpicker.DocumentPickerActivity", "com.whatsapp.ContactPicker"),
+    val pickerClasses: Set<String> = setOf("com.whatsapp.gallerypicker.GalleryPicker", "com.whatsapp.documentpicker.DocumentPickerActivity", "com.whatsapp.ContactPicker", "com.whatsapp.contact.ui.picker.ExternalShareContactPicker"),
     val conversationHeaderIds: Set<String> = setOf("conversation_contact_name"),
     val inputFieldIds: Set<String> = setOf("entry"),
     val chatListIds: Set<String> = setOf("conversations_row_contact_name"),
@@ -81,7 +81,7 @@ data class WhatsAppProfile(
     /** Title views of the rows in WhatsApp's share (contact picker) list; used only by experimental direct selection. */
     val shareRowTitleIds: Set<String> = setOf("contactpicker_row_name"),
     /** Window class of WhatsApp's share target list. */
-    val shareListClasses: Set<String> = setOf("com.whatsapp.ContactPicker"),
+    val shareListClasses: Set<String> = setOf("com.whatsapp.ContactPicker", "com.whatsapp.contact.ui.picker.ExternalShareContactPicker"),
     /** WhatsApp's "send to" confirmation/preview screen after a recipient was chosen. */
     val sharePreviewClasses: Set<String> = setOf("com.whatsapp.mediaview.MediaComposerActivity", "com.whatsapp.mediacomposer.MediaComposerActivity"),
     /** View showing the recipient name on that screen. */
@@ -91,7 +91,7 @@ data class WhatsAppProfile(
     /** Recognise a conversation by structure (message box + title) when the ids/classes above do not match. */
     val structuralFallback: Boolean = true,
     /** Outgoing media message bubbles in a conversation. */
-    val outgoingMediaIds: Set<String> = setOf("image_message_outgoing", "main_image_outgoing"),
+    val outgoingMediaIds: Set<String> = setOf("image_message_outgoing", "main_image_outgoing", "image", "media_container"),
 )
 
 class ScreenClassifier(private val profile: WhatsAppProfile = WhatsAppProfile(), private val ownPackage: String = "") {

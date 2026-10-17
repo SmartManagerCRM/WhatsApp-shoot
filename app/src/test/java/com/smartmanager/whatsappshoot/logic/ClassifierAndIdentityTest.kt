@@ -79,6 +79,20 @@ class ClassifierAndIdentityTest {
         assertEquals(ScreenKind.UNKNOWN_WHATSAPP, strict.classify(unknownIds(true, "Alice")).kind)
     }
 
+    // ---- screens observed on a real phone (WhatsApp Business 2.26.34.74, Android 16) ----
+    @Test fun realWhatsAppBusinessScreens() {
+        val chatList = ScreenSnapshot("com.whatsapp.w4b", setOf("conversations_row_contact_name", "contact_selector", "fab"), null, "com.whatsapp.home.ui.HomeActivity")
+        assertEquals(ScreenKind.CHAT_LIST, c.classify(chatList).kind)
+        val chat = ScreenSnapshot("com.whatsapp.w4b", setOf("conversation_contact_name", "entry", "input_attach_button"), "Alice", "com.whatsapp.Conversation", hasEditableInput = true, topTitle = "Alice")
+        assertEquals(ScreenKind.CONVERSATION, c.classify(chat).kind)
+        val picker = ScreenSnapshot("com.whatsapp.w4b", setOf("contactpicker_row_name", "menuitem_search"), null, "com.whatsapp.contact.ui.picker.ExternalShareContactPicker")
+        assertEquals(ScreenKind.ATTACHMENT_PICKER, c.classify(picker).kind)
+        // the same screen once a chat is selected has a message box (caption) and a title: it must still be the picker, not a chat
+        val pickerWithSendBar = ScreenSnapshot("com.whatsapp.w4b", setOf("recipients", "send", "appended_message"), null,
+            "com.whatsapp.contact.ui.picker.ExternalShareContactPicker", hasEditableInput = true, topTitle = "Send to")
+        assertEquals(ScreenKind.ATTACHMENT_PICKER, c.classify(pickerWithSendBar).kind)
+    }
+
     @Test fun snapshotToStringDoesNotLeakHeader() {
         assertFalse(conversation("Secret Name").toString().contains("Secret"))
     }

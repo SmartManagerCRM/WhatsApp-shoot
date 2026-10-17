@@ -403,7 +403,7 @@ class AutomationController(
         set(StatusMessage.PREPARING_ATTACHMENT)
         when (val r = launcher.launchShare(shot, shotIdentity, hasher, direct)) {
             is LaunchResult.Launched -> if (r.directSelectPending) {
-                shareEngine = ShareFlowEngine(shotIdentity, hasher, allowSend, baselineOutgoing)
+                shareEngine = ShareFlowEngine(shotIdentity, hasher, allowSend, baselineOutgoing, clock)
                 val limit = if (allowSend) SEND_FLOW_TIMEOUT_MS else DIRECT_SELECT_TIMEOUT_MS
                 shareTimeout = scheduler.schedule(limit) { onShareOutcome(shareEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
             } else {
@@ -439,7 +439,7 @@ class AutomationController(
         val e = shareEngine ?: return null
         if (machine.state != AutomationState.PREPARING_ATTACHMENT || machine.paused) { shareEngine = null; return null }
         val a = e.step(view)
-        val trace = "share: stage=${view.stage} rows=${view.rowTitles.size} texts=${view.visibleTexts.size} recipientLabel=${!view.previewRecipient.isNullOrBlank()} sendButton=${view.sendButtonAvailable} -> ${a::class.simpleName}" +
+        val trace = "share: stage=${view.stage} rows=${view.rowTitles.size} texts=${view.visibleTexts.size} recipientLabel=${!view.previewRecipient.isNullOrBlank()} sendButton=${view.sendButtonAvailable} canScroll=${view.canScroll} ${e.note} -> ${a::class.simpleName}" +
             ((a as? ShareAction.Done)?.let { " ${it.outcome}" } ?: "")
         if (trace != lastShareTrace) { ActivityLog.add(trace); lastShareTrace = trace }
         if (a is ShareAction.Done) onShareOutcome(a.outcome)

@@ -7,7 +7,19 @@
 | WhatsApp Business (com.whatsapp.w4b) | **none** |
 | Android | **none** (compile-checked against API 34 only) |
 
-Everything WhatsApp-specific in this repository was verified only against synthetic screen snapshots in JVM tests.
+Everything WhatsApp-specific was verified against synthetic screen snapshots in JVM tests, **plus calibration data copied from one real phone**
+(below). Having *read* a real phone's screens is not the same as having *tested* the whole flow on it; the flow has not yet been confirmed end to end.
+
+### Calibration data from a real device (Infinix X6856, Android 16; WhatsApp Business 2.26.34.74, WhatsApp 2.26.39.74)
+Obtained from the app's own diagnostics report (view-id names and classes only).
+| Screen | Activity class | Useful view ids |
+|---|---|---|
+| Chat list | `com.whatsapp.home.ui.HomeActivity` | `conversations_row_contact_name`, `contact_selector`, `fab` |
+| Conversation | `com.whatsapp.Conversation` | `conversation_contact_name` (title), `entry` (message box), `input_attach_button` |
+| Share list (opened by the app's share intent) | `com.whatsapp.contact.ui.picker.ExternalShareContactPicker` | `contactpicker_row_name`, `menuitem_search`, `list`; the list fills in *after* the screen opens |
+| Share list after a chat is selected | the **same** class | `recipients` (recipient label), `send` (Send button, bottom right), `appended_message` (caption box), `thumbnail` |
+Consequences built into the app: the share list is given time to load and is scrolled if the chat is not in view; the "send bar" is recognised
+by the presence of `send` inside the picker class; the recipient label must name exactly one recipient equal to the verified chat.
 
 ## How WhatsApp is recognised
 `WhatsAppProfile` (in `logic/ScreenModel.kt`) lists supported packages, activity class names and view ids. A screen counts as a conversation only if

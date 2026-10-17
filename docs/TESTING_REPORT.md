@@ -12,7 +12,7 @@ This report separates three kinds of evidence. Nothing in the second or third co
 | **B. Compile check (PASSED)** | Android platform sources type-check against the real Android 34 API. Proves they compile, not that they behave. |
 | **C. Not run** | Gradle build, APK packaging, Compose UI compilation, emulator or physical-device behaviour. |
 
-## A. Automated JVM tests: 200 tests, 0 failures
+## A. Automated JVM tests: 207 tests, 0 failures
 
 Run with `scripts/run-jvm-tests.sh` (or `scripts/jvm-tests-quick.sh` in the authoring sandbox).
 
@@ -22,12 +22,12 @@ Run with `scripts/run-jvm-tests.sh` (or `scripts/jvm-tests-quick.sh` in the auth
 | `ActivationEngineTest` | 16 | activation, restart/update, copy to another installation, key loss, reinstall, device replacement, record corruption + backup slot, forged edits, Keystore/storage failure |
 | `LicenseToolTest` | 10 | keygen -> issue -> verify -> activate-in-app round trip, unique IDs, wrong passphrase, missing key, malformed input, no secrets printed, no overwrite |
 | `StateMachineTest` | 10 | transition table, stop from every state, no skipping verification, pause/resume |
-| `ClassifierAndIdentityTest` | 18 | screen classification (synthetic snapshots), Business variant, destination verification, unambiguous share-row selection, hashed identity |
+| `ClassifierAndIdentityTest` | 19 | screen classification (synthetic snapshots), Business variant, destination verification, unambiguous share-row selection, hashed identity |
 | `RepositoryAndGuardTest` | 7 | atomic save, retention cleanup that never deletes foreign files, storage failure, duplicate-capture guard |
 | `ControllerTest` | 46 | full automation workflow with fakes (see matrices) |
 | `ScreenshotSelectionTest` | 13 | latest-screenshot selection: Screenshots-folder-only, formats, pending/trashed/empty, date fallbacks, deleted/unreadable latest, permission states, identical files |
 | `SendPolicyTest` | 7 | the three sending behaviors, per-chat independence, unreliable identity, persistent ledger |
-| `ShareFlowTest` | 12 | share-screen engine: one-row selection, recipient check before Send, confirmed vs unconfirmed, timeout, stop |
+| `ShareFlowTest` | 18 | share-screen engine: one-row selection, recipient check before Send, confirmed vs unconfirmed, timeout, stop |
 | `LatestWorkflowTest` | 37 | end-to-end workflow with fakes (see matrix below) |
 | `PolicyTest` | 11 | static checks: no INTERNET permission, no network APIs, no backup, FileProvider scope, no logging, no `Send` automation, no private key committed, signing code absent from the app |
 
@@ -139,3 +139,12 @@ Root causes found by reading the code, all fixed and covered by JVM tests (not y
 5. UI: squashed "Done" button, stale "never sends" text, no visible explanation that automatic sending is a separate switch -> fixed.
 Added: in-app activity log + diagnostics (copy/share) so the next failure can be diagnosed from the phone.
 Still unverified: all share-screen heuristics against a real WhatsApp (see docs/KNOWN_LIMITATIONS.md).
+
+## Round 4: first diagnostics from a real phone (version 1.0.2)
+Device: Infinix X6856, Android 16, WhatsApp Business 2.26.34.74. Activity log: chat recognised, newest screenshot found, share list opened, then within one
+second `share: stage=SHARE_LIST rows=1 texts=4 -> ABORT_NOT_FOUND`.
+Cause: the share list was still loading (one row, section headers and placeholders) and the engine judged it on its first look. Also, WhatsApp shows the send bar
+(`recipients`, `send`) inside the same picker class, which the stage detection treated as "still the list".
+Fixed (covered by JVM tests, **not yet confirmed on the phone**): wait for the list to load/settle (3.5 s) before concluding "not found"; scroll the list (up to 8 pages,
+stop at the end); detect the send bar by the presence of `send` inside the picker; require the recipient label to name exactly one recipient; real class names added;
+a window whose view tree is not built yet is re-read shortly instead of being treated as "left the chat".

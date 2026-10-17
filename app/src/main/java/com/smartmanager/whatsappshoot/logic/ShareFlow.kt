@@ -18,11 +18,16 @@ data class ShareScreenView(
      * recipient label cannot be located by id. Never stored or logged.
      */
     val visibleTexts: List<String?> = emptyList(),
+    /** True if the recipient list can be scrolled further. */
+    val canScroll: Boolean = false,
 )
 
 sealed class ShareAction {
     object Wait : ShareAction()
     data class ClickRow(val index: Int) : ShareAction()
+
+    /** The chat is not among the visible rows: scroll the recipient list forward one page. */
+    object ScrollList : ShareAction()
 
     /** Only ever produced after the recipient on WhatsApp's own screen matched the verified chat. */
     object ClickSend : ShareAction()
@@ -57,12 +62,22 @@ class ShareFlowEngine(
     private val hasher: IdentityHasher,
     private val allowSend: Boolean,
     private val baselineOutgoing: Int?,
+    private val clock: Clock = Clock { System.currentTimeMillis() },
 ) {
     private enum class Phase { PICK_ROW, ROW_CLICKED, AWAIT_PREVIEW, AWAIT_RESULT, FINISHED }
 
     private var phase = Phase.PICK_ROW
     private var sendClicked = false
     private var previewMisses = 0
+    private var pickStartedAt = -1L
+    private var lastSig = 0
+    private var lastChangeAt = 0L
+    private var scrolls = 0
+    private var scrollPendingSig: Int? = null
+
+    /** Short, content-free description of the last decision (counts only), for the activity log. */
+    var note: String = ""
+        private set
     var finished = false
         private set
 
@@ -82,13 +97,29 @@ class ShareFlowEngine(
 
     private fun pick(v: ShareScreenView): ShareAction {
         if (v.stage != ShareStage.SHARE_LIST) return ShareAction.Wait
-        return when (val c = ShareTargetSelector.choose(v.rowTitles, expected, hasher)) {
+        val now = clock.nowMs()
+        if (pickStartedAt < 0) { pickStartedAt = now; lastChangeAt = now }
+        val sig = v.rowTitles.hashCode()
+        if (sig != lastSig) { lastSig = sig; lastChangeAt = now }
+        val choice = ShareTargetSelector.choose(v.rowTitles, expected, hasher)
+        note = "rows=${v.rowTitles.size} scrolls=$scrolls match=${choice::class.simpleName}"
+        return when (choice) {
             is ShareTargetSelector.Choice.Single -> {
                 phase = if (allowSend) Phase.AWAIT_PREVIEW else Phase.ROW_CLICKED
-                ShareAction.ClickRow(c.index)
+                ShareAction.ClickRow(choice.index)
             }
             ShareTargetSelector.Choice.Ambiguous -> finish(ShareOutcome.ABORT_AMBIGUOUS)
-            ShareTargetSelector.Choice.None -> finish(ShareOutcome.ABORT_NOT_FOUND)
+            ShareTargetSelector.Choice.None -> {
+                when {
+                    expected == null || !expected.isKnown -> finish(ShareOutcome.ABORT_NOT_FOUND)
+                    // WhatsApp fills this list in after the screen opens: never judge a list that is still loading or still changing.
+                    now - pickStartedAt < LOAD_MS || now - lastChangeAt < SETTLE_MS -> ShareAction.Wait
+                    // The settled list after a scroll looks the same as before it: we reached the end without finding the chat.
+                    scrollPendingSig == sig -> finish(ShareOutcome.ABORT_NOT_FOUND)
+                    v.canScroll && scrolls < MAX_SCROLLS -> { scrolls++; scrollPendingSig = sig; lastChangeAt = now; ShareAction.ScrollList }
+                    else -> finish(ShareOutcome.ABORT_NOT_FOUND)
+                }
+            }
         }
     }
 
@@ -100,8 +131,9 @@ class ShareFlowEngine(
         if (v.stage != ShareStage.SHARE_PREVIEW) return ShareAction.Wait
         if (expected == null || !expected.isKnown) return finish(ShareOutcome.ABORT_RECIPIENT_UNVERIFIED)
         if (!v.previewRecipient.isNullOrBlank()) {
-            // WhatsApp's own recipient label was found: it must be exactly the verified chat.
-            if (!expected.matches(hasher.identityOf(v.previewRecipient))) return finish(ShareOutcome.ABORT_RECIPIENT_MISMATCH)
+            // WhatsApp's own recipient label was found: it must name exactly one recipient, and that must be the verified chat.
+            val parts = v.previewRecipient.split(',', '\u060C', ';').map { it.trim() }.filter { it.isNotEmpty() }
+            if (parts.size != 1 || !expected.matches(hasher.identityOf(parts[0]))) return finish(ShareOutcome.ABORT_RECIPIENT_MISMATCH)
         } else if (v.visibleTexts.none { expected.matches(hasher.identityOf(it)) }) {
             // No recipient label found: the chat's name must at least appear on the screen. Names can render a moment late, so allow a few looks.
             previewMisses++
@@ -125,6 +157,9 @@ class ShareFlowEngine(
 
     companion object {
         const val PREVIEW_PATIENCE = 3
+        const val LOAD_MS = 3_500L
+        const val SETTLE_MS = 900L
+        const val MAX_SCROLLS = 8
     }
 
     private fun finish(o: ShareOutcome): ShareAction.Done {

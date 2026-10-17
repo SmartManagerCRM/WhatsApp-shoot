@@ -412,9 +412,16 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             isAlbum(lc(t)) && (spinnerRect == null || !spinnerRect.contains(r.centerX(), r.centerY()))
         }?.second
         // Gallery tiles only (the chat's own media thumbnails use other ids); the camera tile is excluded. Reading order = newest first.
-        val tiles = if (!pickerOpen) emptyList() else readingOrder(sc.clicks.filter { ci ->
+        // WhatsApp mirrors its whole layout in right-to-left languages: the newest picture is then the top-RIGHT tile. Read the direction from
+        // where WhatsApp itself puts its buttons; fall back to the phone's language direction.
+        fun xOf(id: String) = sc.clicks.firstOrNull { it.id == id }?.rect?.centerX()
+        val pairs = listOf("emoji_picker_btn" to "camera_btn", "emoji_picker_btn" to "input_attach_button", "wds_toolbar_nav_button" to "hd_control_btn", "whatsapp_toolbar_home" to "menuitem_overflow")
+            .mapNotNull { (a, b) -> val xa = xOf(a); val xb = xOf(b); if (xa != null && xb != null) xa to xb else null }
+        val systemRtl = resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
+        val rtl = com.smartmanager.whatsappshoot.logic.GridOrder.isRtl(pairs, systemRtl)
+        val tiles = if (!pickerOpen) emptyList() else com.smartmanager.whatsappshoot.logic.GridOrder.inReadingOrder(sc.clicks.filter { ci ->
             ci.id in TILE_IDS && lc(ci.desc).let { d -> CAMERA_WORDS.none { d.contains(it) } } && ci.rect.top >= h * 0.12 && ci.rect.bottom <= h
-        })
+        }, { ci -> com.smartmanager.whatsappshoot.logic.GridOrder.Box(ci.rect.left, ci.rect.top, ci.rect.right, ci.rect.bottom) }, rtl)
         // A video tile shows a duration (m:ss) or a "video" description inside its bounds: only photos are ever sent.
         fun isVideoTile(t: ClickInfo): Boolean = VIDEO_WORDS.any { lc(t.desc).contains(it) } || sc.labels.any { (txt, n) ->
             val r = android.graphics.Rect().also { n.getBoundsInScreen(it) }
@@ -433,7 +440,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val thumbIsVideo = choice is com.smartmanager.whatsappshoot.logic.TileChoice.NotAPhoto || choice is com.smartmanager.whatsappshoot.logic.TileChoice.Unverifiable
         val hasTile = choice !is com.smartmanager.whatsappshoot.logic.TileChoice.None
         if (tiles.isNotEmpty()) {
-            val d = "tiles: n=${tiles.size} video=${flags.take(8).joinToString("") { if (it) "V" else "p" }} desc0=${lc(tiles[0].desc).take(24)} choice=${choice::class.simpleName}" +
+            val d = "tiles: n=${tiles.size} dir=${if (rtl) "rtl" else "ltr"}(${pairs.size} marks) video=${flags.take(8).joinToString("") { if (it) "V" else "p" }} desc0=${lc(tiles[0].desc).take(24)} choice=${choice::class.simpleName}" +
                 ((choice as? com.smartmanager.whatsappshoot.logic.TileChoice.Pick)?.let { " #${it.index}${if (it.byPosition) " (by position)" else ""}" } ?: "")
             if (d != lastTileLog) { lastTileLog = d; ActivityLog.add(d) }
         }
@@ -474,16 +481,6 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             ActivityLog.add("clicked ${a.javaClass.simpleName}: $ok")
             if (!ok && a != com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker) c.attachClickFailed(a)
         }
-    }
-
-    /** Gallery tiles in the order the eye reads them: row by row (tiles of one row can differ by a few pixels), left to right. */
-    private fun readingOrder(list: List<ClickInfo>): List<ClickInfo> {
-        val rows = ArrayList<MutableList<ClickInfo>>()
-        for (t in list.sortedBy { it.rect.top }) {
-            val row = rows.lastOrNull()
-            if (row != null && kotlin.math.abs(t.rect.top - row[0].rect.top) < t.rect.height() / 2) row += t else rows += mutableListOf(t)
-        }
-        return rows.flatMap { r -> r.sortedBy { it.rect.left } }
     }
 
     private fun clickAncestor(node: AccessibilityNodeInfo?): Boolean {

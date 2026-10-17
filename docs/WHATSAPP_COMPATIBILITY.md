@@ -97,3 +97,10 @@ The activity log shows `tiles: n=.. video=pppV.. choice=...` so the choice can b
 ### v1.2.0: languages and automatic license binding
 - The app (screens, notifications, floating button) ships in English, Arabic (right-to-left) and French; Settings > Language switches it at once. `TranslationsTest` fails the build if any string is missing in a language, if placeholders differ, or if a screen hard-codes English text.
 - First launch creates the installation key; a license is entered with no request code and binds to that installation. See `docs/LICENSING.md` for the limitation (a copied code can be activated on another phone).
+
+### v1.2.1: newest picture in right-to-left languages
+WhatsApp mirrors its gallery grid in right-to-left languages (Arabic, Hebrew, Persian, Urdu): the newest picture is then the **top-right** tile, not the top-left.
+Earlier versions always ordered tiles left to right, so in Arabic they chose the wrong (4th/last-in-row) picture. Now the tiles are put in WhatsApp's own reading order
+(`logic/GridOrder.kt`): rows top to bottom, inside a row right to left when mirrored. The direction is read from the screen itself (x positions of emoji vs camera button,
+back arrow vs menu button), with the phone's language direction as a fallback. The `tiles:` diagnostics line now shows `dir=ltr|rtl(N marks)`.
+Verified by unit tests only; not yet confirmed on a real Arabic phone.

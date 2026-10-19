@@ -63,11 +63,35 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         if (pkg != lastPackage && pkg !in graph.profile.ignoredPackages && pkg != packageName) lastPackage = pkg
         // Coalesce bursts of events into one evaluation (also the first line of duplicate prevention).
         pendingPackage = pkg
+        if (pkg in profile.packages) { watchTicks = 0; armWatchdog() }
         main.removeCallbacks(evaluate)
         main.postDelayed(evaluate, if (graph.controller.shareFlowActive) FLOW_EVENT_DEBOUNCE_MS else EVENT_DEBOUNCE_MS)
     }
 
     @Volatile private var pendingPackage: String? = null
+
+    // Safety net for "nothing happens until I scroll": WhatsApp sometimes finishes drawing a chat without sending another accessibility event, and
+    // the one evaluation that did run saw a half-built screen. While WhatsApp is in front and the session is still waiting for a chat (or has a chat
+    // it has not acted on yet), look again every few hundred ms - for a bounded time after the last real event, so it cannot drain the battery.
+    private var watchTicks = 0
+    private var watching = false
+    private val watchdog = Runnable {
+        watching = false
+        val v = graph.controller.view
+        val pkg = pendingPackage
+        if (pkg == null || pkg !in profile.packages || v.paused) return@Runnable
+        if (v.state != com.smartmanager.whatsappshoot.logic.AutomationState.WHATSAPP_DETECTED && v.state != com.smartmanager.whatsappshoot.logic.AutomationState.CONVERSATION_DETECTED) return@Runnable
+        if (watchTicks >= WATCH_MAX_TICKS) return@Runnable
+        watchTicks++
+        if (rootInActiveWindow?.packageName?.toString() == pkg) evaluateNow()
+        armWatchdog()
+    }
+
+    private fun armWatchdog() {
+        if (watching) return
+        watching = true
+        main.postDelayed(watchdog, if (watchTicks < WATCH_FAST_TICKS) WATCH_FAST_MS else WATCH_SLOW_MS)
+    }
 
     // While a share flow is running, look at WhatsApp every few hundred ms instead of waiting for the next accessibility event:
     // a screen that finished loading after the last event would otherwise never be noticed.
@@ -547,8 +571,12 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val MAX_TEXTS = 300
         private const val MAX_CLICKS = 400
         private const val MIN_LIST_ROWS = 3
-        private const val MAX_EMPTY_RETRIES = 6
-        private const val EMPTY_RETRY_MS = 200L
+        private const val MAX_EMPTY_RETRIES = 8
+        private const val EMPTY_RETRY_MS = 250L
+        private const val WATCH_FAST_MS = 400L
+        private const val WATCH_SLOW_MS = 1_000L
+        private const val WATCH_FAST_TICKS = 10
+        private const val WATCH_MAX_TICKS = 24
         private const val SHARE_TICK_MS = 120L
         private val ATTACH_IDS = setOf("input_attach_button", "attach_button", "attach")
         private val GALLERY_IDS = setOf("pickfiletype_gallery_holder")

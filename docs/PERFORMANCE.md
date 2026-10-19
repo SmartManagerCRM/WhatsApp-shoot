@@ -33,3 +33,11 @@ There is no profiler on a phone in this project's build environment, so two thin
 ## Risk and how to verify
 Shorter waits could, on a slow phone, make the app act before WhatsApp is ready. Every action is still gated by the screen state, and the grid fast path falls back to the old 1000 ms wait.
 If a send ever fails or a video is not recognised, copy the diagnostics and look at the `timing:` and `tiles:` lines.
+
+## v1.2.4: no more "scroll first" after opening a chat
+Symptom: sometimes nothing happened until the user scrolled the chat. Cause (from the code, not yet reproduced on a phone): the app reacts to WhatsApp's accessibility
+events only. If WhatsApp finished drawing the chat without sending one more event after the evaluation that saw a half-built screen, the app never looked again; scrolling
+produced new events and restarted the workflow. I had also shortened the retry for an empty screen in v1.2.3, which made this slightly more likely.
+Fix: a bounded watchdog. While WhatsApp is in front and the session is waiting for a chat (or has a chat it has not acted on), the screen is re-evaluated every 400 ms for ~4 s,
+then every 1 s up to ~14 s after the last real event. Evaluation is idempotent (one send per chat visit is still enforced by the guard and the send policy), and the watchdog stops
+as soon as a flow is running, the chat was handled, the session is paused/stopped or WhatsApp is not in front. The empty-screen retry is back to 8 x 250 ms.

@@ -104,3 +104,11 @@ Earlier versions always ordered tiles left to right, so in Arabic they chose the
 (`logic/GridOrder.kt`): rows top to bottom, inside a row right to left when mirrored. The direction is read from the screen itself (x positions of emoji vs camera button,
 back arrow vs menu button), with the phone's language direction as a fallback. The `tiles:` diagnostics line now shows `dir=ltr|rtl(N marks)`.
 Verified by unit tests only; not yet confirmed on a real Arabic phone.
+
+### v1.3.2: attach sheet with an inline photo strip (no "Gallery" entry)
+Diagnostics from a second WhatsApp Business account (w4b 2.26.40.73, Infinix X6856, Android 16) showed an attach sheet WITHOUT the `pickfiletype_gallery_holder` ("Gallery") entry:
+Document / Order / Payments / Catalog / Quick Reply / Location / Contact / Poll / Event, and the newest pictures as a strip of `media_item_view` tiles inside the sheet itself.
+The flow waited 3 s for a Gallery entry that does not exist and ended with "Could not open WhatsApp's attach menu / Gallery". In the newest-photo mode the strip is now used directly:
+its first tile (newest first, same video/photo check as before) is tapped. Chats that do have the Gallery entry behave as before. The album-dropdown mode still requires the Gallery entry.
+Caption: in the first account the "Add a caption..." box sits in the gallery panel next to the "Send 1 media" bar. v1.3.1 had restricted typing there; v1.3.2 allows any editable box except the chat's own `entry`
+in the gallery panel once the Send bar is on screen, and on the preview screen. Unverified on the strip layout: where WhatsApp puts the caption box after a strip tile is tapped is not known yet.

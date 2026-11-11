@@ -287,4 +287,31 @@ class AttachFlowTest {
         clock.advance(AttachFlowEngine.CAPTION_RETRY_MS)
         assertEquals(AttachAction.ClickSend, e.step(withSend.copy(captionField = true, captionMatches = true)))
     }
+
+    // ---- attach sheet with an inline photo strip and no "Gallery" entry (second WhatsApp Business account) ----
+
+    private val stripSheet = AttachScreenView(chatVisible = false, pickerOpen = true, thumbnail = true, gridSignature = 5)
+
+    @Test fun inlineStrip_landingMode_usesTheFirstTileDirectly() {
+        val e = AttachFlowEngine(3, clock, landingFirst = true)
+        assertEquals(AttachAction.ClickAttach, e.step(chat)); tick()
+        var action: AttachAction = AttachAction.Wait; var t = 0L
+        while (action == AttachAction.Wait && t < 3_000) { action = e.step(stripSheet); if (action == AttachAction.Wait) { clock.advance(120); t += 120 } }
+        assertEquals(AttachAction.ClickThumbnail, action)
+        assertTrue("took $t ms", t < AttachFlowEngine.ALBUM_SETTLE_MS)
+    }
+
+    @Test fun inlineStrip_withVideoFirst_isStillRefused() {
+        val e = AttachFlowEngine(3, clock, landingFirst = true)
+        e.step(chat); tick()
+        var action: AttachAction = AttachAction.Wait; var t = 0L
+        while (action == AttachAction.Wait && t < 3_000) { action = e.step(stripSheet.copy(thumbIsVideo = true)); if (action == AttachAction.Wait) { clock.advance(120); t += 120 } }
+        assertEquals(AttachAction.Done(ShareOutcome.ABORT_NOT_PHOTO), action)
+    }
+
+    @Test fun inlineStrip_albumMode_stillNeedsTheGalleryEntry() {
+        val e = AttachFlowEngine(3, clock)
+        e.step(chat); tick()
+        assertEquals(AttachAction.Wait, e.step(stripSheet))
+    }
 }

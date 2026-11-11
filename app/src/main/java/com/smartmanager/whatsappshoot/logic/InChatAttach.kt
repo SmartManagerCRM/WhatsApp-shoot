@@ -142,6 +142,9 @@ class AttachFlowEngine(
     }
 
     private fun awaitMenu(v: AttachScreenView, now: Long): AttachAction {
+        // Some chats (seen on a second WhatsApp Business account) show the newest pictures as a strip INSIDE the attach sheet and have no "Gallery" entry:
+        // that strip is the landing grid, its first tile is the newest picture. Use it directly.
+        if (landingFirst && !v.galleryEntry && v.pickerOpen && v.thumbnail) { go(Phase.AWAIT_PICKER, now); return AttachAction.Wait }
         if (v.galleryEntry && settled(now)) {
             go(Phase.AWAIT_PICKER, now)
             return click(AttachAction.ClickGallery, now)

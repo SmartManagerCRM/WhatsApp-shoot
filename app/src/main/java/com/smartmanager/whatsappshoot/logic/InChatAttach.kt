@@ -34,6 +34,10 @@ data class AttachScreenView(
      * loading; once it has been stable for a moment the next tap does not need to wait for the full fixed settle time.
      */
     val gridSignature: Int = 0,
+    /** WhatsApp's caption box ("Add a caption") is on screen (preview screen, or the bar of the gallery panel). */
+    val captionField: Boolean = false,
+    /** The caption box already contains exactly the wanted text. */
+    val captionMatches: Boolean = false,
 )
 
 sealed class AttachAction {
@@ -43,6 +47,9 @@ sealed class AttachAction {
     object ClickAlbum : AttachAction()
     object ClickAlbumsSwitcher : AttachAction()
     object ClickThumbnail : AttachAction()
+
+    /** Type the configured text into WhatsApp's caption box (never sends anything by itself). */
+    object SetCaption : AttachAction()
 
     /** Scroll the open album list forward one page. */
     object ScrollPicker : AttachAction()
@@ -67,6 +74,8 @@ class AttachFlowEngine(
     private val clock: Clock = Clock { System.currentTimeMillis() },
     /** The screenshot was verified to be the newest picture on the phone: the first tile of WhatsApp's landing gallery is it. */
     private val landingFirst: Boolean = false,
+    /** Text to send together with the picture; empty = none. */
+    private val caption: String = "",
 ) {
     private enum class Phase { OPEN_ATTACH, AWAIT_MENU, AWAIT_PICKER, AWAIT_SEND, AWAIT_RESULT, FINISHED }
 
@@ -81,6 +90,9 @@ class AttachFlowEngine(
     private var sendClicks = 0
     private var chatBackAt = -1L
     private var scrolls = 0
+    private var captionDone = false
+    private var captionTries = 0
+    private var lastCaptionAt = -1_000_000L
     private var lastSignature = 0
     private var signatureSince = -1L
 
@@ -180,7 +192,22 @@ class AttachFlowEngine(
         return if (now - phaseSince > PICKER_PATIENCE_MS) finish(ShareOutcome.ABORT_NO_IMAGE) else AttachAction.Wait
     }
 
+    /**
+     * The caption is typed into WhatsApp's caption box when it is on screen, BEFORE any Send tap that could leave the chat. While the box is there and
+     * does not yet hold the text, nothing is sent (a few attempts); if the box never shows up, or the text cannot be set, the picture goes without it.
+     * Returns null when there is nothing to do and the normal flow may continue.
+     */
+    private fun captionStep(v: AttachScreenView, now: Long): AttachAction? {
+        if (caption.isEmpty() || captionDone) return null
+        if (v.captionMatches) { captionDone = true; return null }
+        if (!v.captionField || captionTries >= MAX_CAPTION_TRIES) return null
+        if (now - lastCaptionAt < CAPTION_RETRY_MS) return AttachAction.Wait
+        captionTries++; lastCaptionAt = now
+        return AttachAction.SetCaption
+    }
+
     private fun awaitSend(v: AttachScreenView, now: Long): AttachAction {
+        captionStep(v, now)?.let { return it }
         if (v.sendButton && !v.chatVisible && settled(now)) {
             sendClicks++
             go(Phase.AWAIT_RESULT, now)
@@ -201,6 +228,7 @@ class AttachFlowEngine(
             }
         }
         chatBackAt = -1
+        captionStep(v, now)?.let { return it }
         // Selecting a picture can lead to a second screen (caption/preview) with its own Send button.
         if (v.sendButton && sendClicks < MAX_SEND_CLICKS && now - lastClickAt >= SECOND_SEND_GAP_MS) {
             sendClicks++
@@ -216,6 +244,8 @@ class AttachFlowEngine(
 
     companion object {
         const val CLICK_GAP_MS = 350L
+        const val MAX_CAPTION_TRIES = 3
+        const val CAPTION_RETRY_MS = 600L
         const val OPEN_PATIENCE_MS = 6_000L
         const val MENU_PATIENCE_MS = 3_000L
         const val PICKER_PATIENCE_MS = 10_000L

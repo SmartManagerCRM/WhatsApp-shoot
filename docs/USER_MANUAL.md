@@ -49,3 +49,7 @@ Settings > Language: System default, English, العربية (Arabic, right-to-l
 ## Troubleshooting
 - *WhatsApp is open but "not recognised"*: WhatsApp changed its screens; use Capture and confirm the chat manually; report your WhatsApp version.
 - *Nothing happens*: check the accessibility service is still on and battery optimisation is off for the app.
+
+## Text with the photo (v1.3.0)
+On the Home screen, the card **Text with the photo** holds a message you type once. The app puts it into WhatsApp's caption box and sends it together with every photo.
+Leave the box empty to send the photo only. The text is stored only on the phone (settings), never sent anywhere except inside WhatsApp with the photo.

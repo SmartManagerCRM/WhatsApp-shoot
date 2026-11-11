@@ -37,6 +37,7 @@ class SettingsStore(context: Context) {
             .putString("folders", next.screenshotFolders.joinToString("|"))
             .putBoolean("fullAuto", next.fullyAutomaticSend)
             .putBoolean("landingFirst", next.landingGalleryFirst)
+            .putString("caption", next.captionText)
             .putInt("settingsVersion", 2)
             .apply()
         _flow.value = next
@@ -61,6 +62,7 @@ class SettingsStore(context: Context) {
             screenshotFolders = prefs.getString("folders", null)?.split('|')?.filter { it.isNotBlank() }?.ifEmpty { null } ?: d.screenshotFolders,
             fullyAutomaticSend = prefs.getBoolean("fullAuto", d.fullyAutomaticSend),
             landingGalleryFirst = prefs.getBoolean("landingFirst", d.landingGalleryFirst),
+            captionText = prefs.getString("caption", null) ?: d.captionText,
         )
     }
 

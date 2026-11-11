@@ -225,4 +225,66 @@ class AttachFlowTest {
         assertEquals(AttachAction.Done(ShareOutcome.SENT_CONFIRMED), done)
         assertTrue("flow took $took ms", took < 3_000)
     }
+
+    // ---- caption (text sent with the picture) ----
+
+    private val preview = AttachScreenView(chatVisible = false, sendButton = true, captionField = true)
+
+    @Test fun caption_isTypedIntoThePreviewBeforeTheSecondSend_thenSent() {
+        val e = AttachFlowEngine(3, clock, caption = "Hello")
+        e.toThumbnail()
+        assertEquals(AttachAction.ClickSend, e.step(withSend)); tick()
+        assertEquals(AttachAction.SetCaption, e.step(preview))
+        // not typed yet (WhatsApp has not updated the box): no Send, only a bounded retry
+        clock.advance(100)
+        assertEquals(AttachAction.Wait, e.step(preview))
+        // box now holds the text: Send is tapped (after the usual gap since the first Send)
+        clock.advance(AttachFlowEngine.SECOND_SEND_GAP_MS)
+        assertEquals(AttachAction.ClickSend, e.step(preview.copy(captionMatches = true)))
+        tick()
+        assertEquals(AttachAction.Done(ShareOutcome.SENT_CONFIRMED), e.step(chat.copy(outgoingMediaCount = 4)))
+    }
+
+    @Test fun caption_neverSendsBeforeTheTextIsInTheBox() {
+        val e = AttachFlowEngine(3, clock, caption = "Hello")
+        e.toThumbnail()
+        e.step(withSend); tick()
+        var sends = 0
+        repeat(2) { if (e.step(preview) == AttachAction.ClickSend) sends++; clock.advance(AttachFlowEngine.CAPTION_RETRY_MS) }
+        assertEquals(0, sends)
+    }
+
+    @Test fun caption_boxNeverAppears_pictureIsStillSent() {
+        val e = AttachFlowEngine(3, clock, caption = "Hello")
+        e.toThumbnail()
+        assertEquals(AttachAction.ClickSend, e.step(withSend)); tick()
+        clock.advance(AttachFlowEngine.SECOND_SEND_GAP_MS)
+        assertEquals(AttachAction.ClickSend, e.step(AttachScreenView(chatVisible = false, sendButton = true)))
+    }
+
+    @Test fun caption_cannotBeSet_givesUpAfterTheTriesAndSendsThePicture() {
+        val e = AttachFlowEngine(3, clock, caption = "Hello")
+        e.toThumbnail(); e.step(withSend); tick()
+        var typed = 0; var sent = false
+        repeat(12) {
+            when (e.step(preview)) { AttachAction.SetCaption -> typed++; AttachAction.ClickSend -> sent = true; else -> Unit }
+            clock.advance(AttachFlowEngine.CAPTION_RETRY_MS + 100)
+        }
+        assertEquals(AttachFlowEngine.MAX_CAPTION_TRIES, typed); assertTrue(sent)
+    }
+
+    @Test fun noCaptionConfigured_neverTouchesTheCaptionBox() {
+        val e = AttachFlowEngine(3, clock)
+        e.toThumbnail(); e.step(withSend); tick()
+        clock.advance(AttachFlowEngine.SECOND_SEND_GAP_MS)
+        assertEquals(AttachAction.ClickSend, e.step(preview))
+    }
+
+    @Test fun captionInTheGalleryBar_isTypedBeforeTheFirstSend() {
+        val e = AttachFlowEngine(3, clock, caption = "Hello")
+        e.toThumbnail()
+        assertEquals(AttachAction.SetCaption, e.step(withSend.copy(captionField = true)))
+        clock.advance(AttachFlowEngine.CAPTION_RETRY_MS)
+        assertEquals(AttachAction.ClickSend, e.step(withSend.copy(captionField = true, captionMatches = true)))
+    }
 }

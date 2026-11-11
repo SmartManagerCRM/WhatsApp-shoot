@@ -421,7 +421,7 @@ class AutomationController(
             val landing = galleryMode || (settings().landingGalleryFirst && route == GalleryRoute.LANDING)
             ActivityLog.add(if (galleryMode) "newest photo mode: plan verified=${activeTilePlan?.verified} newerVideos=${activeTilePlan?.skip}" else if (landing) "screenshot is the newest item on the phone: using the landing gallery" else "using the Screenshots album")
             attachLanding = landing
-            attachEngine = AttachFlowEngine(baselineOutgoing, clock, landing)
+            attachEngine = AttachFlowEngine(baselineOutgoing, clock, landing, settings().captionText.trim())
             shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
             ActivityLog.add("in-chat attach flow started (timing: ${sinceVisit()} ms after the chat appeared)")
             return
@@ -471,6 +471,9 @@ class AutomationController(
     /** Milliseconds since the open chat was first recognised (diagnostics only). */
     fun sinceVisit(): Long = if (visitStartMs > 0) clock.nowMs() - visitStartMs else -1
 
+    /** The text to type into WhatsApp's caption box (trimmed); empty when none is configured. */
+    fun captionText(): String = settings().captionText.trim()
+
     /** Folder names shown as albums in WhatsApp's gallery. */
     fun albumNames(): List<String> = ScreenshotFolderMatcher.leafNames(settings().screenshotFolders)
 
@@ -491,6 +494,7 @@ class AutomationController(
             AttachAction.ClickSend -> ShareOutcome.ABORT_SEND_UNAVAILABLE
             AttachAction.ClickAlbum, AttachAction.ClickAlbumsSwitcher -> ShareOutcome.ABORT_NO_ALBUM
             AttachAction.ClickThumbnail -> ShareOutcome.ABORT_NO_IMAGE
+            AttachAction.SetCaption -> return // a caption that cannot be typed never stops the picture from being sent
             else -> ShareOutcome.ABORT_NO_GALLERY
         })
     }

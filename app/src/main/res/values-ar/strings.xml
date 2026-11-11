@@ -102,6 +102,11 @@
     <string name="h_stop">إيقاف</string>
     <string name="h_pause">إيقاف مؤقت</string>
     <string name="h_resume">متابعة</string>
+    <string name="h_caption_title">نص مع الصورة</string>
+    <string name="h_caption_sub">اكتبه مرة واحدة. يُرسل مع كل صورة كتعليق على الصورة.</string>
+    <string name="h_caption_label">النص المراد إرساله مع الصورة</string>
+    <string name="h_caption_off">لا يوجد نص: تُرسل الصورة فقط.</string>
+    <string name="h_caption_on">تتم إضافة هذا النص إلى كل صورة يرسلها التطبيق.</string>
     <string name="h_hint_license">فعّل ترخيصك للبدء</string>
     <string name="h_hint_accessibility">فعّل خدمة تسهيلات الاستخدام للبدء</string>
     <string name="h_needs_you">يحتاج إلى تدخلك</string>

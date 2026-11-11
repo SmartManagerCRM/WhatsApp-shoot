@@ -165,6 +165,9 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val labels: ArrayList<Pair<String, AccessibilityNodeInfo>> = ArrayList(),
         var scrollNode: AccessibilityNodeInfo? = null,
         var scrollArea: Long = 0,
+        /** WhatsApp's caption box: an editable view whose id says "caption", else any editable view that is not the chat's own message box. */
+        var captionNamed: AccessibilityNodeInfo? = null,
+        var captionAny: AccessibilityNodeInfo? = null,
         val clicks: ArrayList<ClickInfo> = ArrayList(),
         val nodes: ArrayList<String> = ArrayList(),
         var editable: Boolean = false,
@@ -195,6 +198,10 @@ class WhatsAppAccessibilityService : AccessibilityService() {
                 if (r.labels.size < MAX_TEXTS) {
                     val l = n.text?.toString()?.takeIf { it.isNotBlank() } ?: n.contentDescription?.toString()?.takeIf { it.isNotBlank() }
                     if (l != null) r.labels += l to n
+                }
+                if (n.isEditable && n.isEnabled) {
+                    if (short?.contains("caption", ignoreCase = true) == true) { if (r.captionNamed == null) r.captionNamed = n }
+                    else if (short != "entry" && r.captionAny == null) r.captionAny = n
                 }
                 if (n.isScrollable && rect.width().toLong() * rect.height() > r.scrollArea) { r.scrollNode = n; r.scrollArea = rect.width().toLong() * rect.height() }
                 if (n.isClickable && n.isEnabled && r.clicks.size < MAX_CLICKS) r.clicks += ClickInfo(n, n.contentDescription?.toString(), cls, rect, short)
@@ -418,6 +425,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
                 if (sc.header == null) sc.header = other.header
                 if (sc.title == null) sc.title = other.title
                 if (sc.sendNode == null) sc.sendNode = other.sendNode
+                if (sc.captionNamed == null) sc.captionNamed = other.captionNamed
+                if (sc.captionAny == null) sc.captionAny = other.captionAny
                 sc.outgoing += other.outgoing
             }
         } catch (e: Exception) { /* windows API unavailable: fall back to the active window only */ }
@@ -492,11 +501,17 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val send = sc.sendNode?.let { it to "id" }
             ?: sc.clicks.firstOrNull { ci -> lc(ci.desc).let { d -> d.isNotEmpty() && SEND_WORDS.any { w2 -> d.contains(w2) } } }?.let { it.node to "label" }
 
+        // Caption box (preview screen / gallery bar). Only looked for when a caption is configured and the chat's own message box is not what we see.
+        val wantedCaption = c.captionText()
+        val captionNode = if (wantedCaption.isEmpty()) null else sc.captionNamed ?: sc.captionAny
+        val captionMatches = captionNode != null && !(Build.VERSION.SDK_INT >= 26 && captionNode.isShowingHintText) && captionNode.text?.toString()?.trim() == wantedCaption
+
         val view = com.smartmanager.whatsappshoot.logic.AttachScreenView(
             chatVisible = chatVisible, attachButton = attach != null, galleryEntry = gallery != null,
             pickerOpen = pickerOpen, albumSelected = currentAlbumOk, albumLabel = albumItem != null,
             albumsSwitcher = spinner != null, thumbnail = hasTile, thumbIsVideo = thumbIsVideo, sendButton = send != null,
             canScroll = popupScroll != null, outgoingMediaCount = if (chatVisible) sc.outgoing else null, gridSignature = gridSignature,
+            captionField = captionNode != null, captionMatches = captionMatches,
         )
         if (pickerOpen && !currentAlbumOk) {
             // Gallery album names only (WhatsApp's media picker, not a conversation): shows how the albums are labelled.
@@ -516,6 +531,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbum -> clickAncestor(albumItem)
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickAlbumsSwitcher -> clickAncestor(spinner?.node)
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickThumbnail -> clickAncestor(thumbNode)
+            com.smartmanager.whatsappshoot.logic.AttachAction.SetCaption -> captionNode?.let { setCaptionText(it, wantedCaption) } ?: false
             com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker -> popupScroll?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
             // The only place WhatsApp's Send button is tapped: opt-in setting, verified chat, picture chosen from the verified album.
             com.smartmanager.whatsappshoot.logic.AttachAction.ClickSend -> clickAncestor(send?.first)
@@ -523,8 +539,15 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         }
         if (ok != null) {
             ActivityLog.add("clicked ${a.javaClass.simpleName}: $ok (timing: ${c.sinceVisit()} ms after the chat appeared, last screen read ${lastScanMs} ms)")
-            if (!ok && a != com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker) c.attachClickFailed(a)
+            if (!ok && a != com.smartmanager.whatsappshoot.logic.AttachAction.ScrollPicker && a != com.smartmanager.whatsappshoot.logic.AttachAction.SetCaption) c.attachClickFailed(a)
         }
+    }
+
+    /** Types [text] into WhatsApp's caption box (focus first, then replace its content). Nothing is sent by this. */
+    private fun setCaptionText(node: AccessibilityNodeInfo, text: String): Boolean {
+        node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        val args = android.os.Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
+        return node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
     }
 
     private fun clickAncestor(node: AccessibilityNodeInfo?): Boolean {

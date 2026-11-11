@@ -34,6 +34,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.OutlinedTextField
+import com.smartmanager.whatsappshoot.logic.AutomationSettings
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -134,6 +136,18 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
             onStart = { c.start() }, onStop = { c.stop() },
             onPause = { if (v.paused) c.resume() else c.pause() },
         )
+
+        // ---------- Text sent with the picture ----------
+        var caption by remember { mutableStateOf(settings.captionText) }
+        SectionCard(stringResource(R.string.h_caption_title), stringResource(R.string.h_caption_sub)) {
+            OutlinedTextField(
+                value = caption,
+                onValueChange = { t -> val v2 = t.take(AutomationSettings.MAX_CAPTION_CHARS); caption = v2; graph.settings.update { it.copy(captionText = v2) } },
+                label = { Text(stringResource(R.string.h_caption_label)) },
+                modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 5,
+            )
+            Text(stringResource(if (caption.isBlank()) R.string.h_caption_off else R.string.h_caption_on), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
 
         // ---------- Needs attention ----------
         if (v.state == AutomationState.MANUAL_ACTION_REQUIRED) {

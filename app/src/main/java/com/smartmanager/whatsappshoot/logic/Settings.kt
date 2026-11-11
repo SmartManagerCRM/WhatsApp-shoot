@@ -44,6 +44,8 @@ data class AutomationSettings(
     val deleteWhenWorkflowEnds: Boolean = true,
     /** Experimental: try to pick the matching chat in WhatsApp's share list. Never presses Send. */
     val directSelectExperimental: Boolean = false,
+    /** Text sent together with the picture (caption). Empty = picture only. Typed once on the Home screen. */
+    val captionText: String = "",
 ) {
     /** Short settle time before an AUTOMATIC capture so the conversation has finished rendering. */
     val effectiveDelayMs: Long
@@ -54,6 +56,7 @@ data class AutomationSettings(
         }
 
     companion object {
+        const val MAX_CAPTION_CHARS = 1000
         const val SETTLE_MS = 300L
         const val DEFAULT_DELAY_MS = 3_000L
         const val MIN_DELAY_MS = 500L

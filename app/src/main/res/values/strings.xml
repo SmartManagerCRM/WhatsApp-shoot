@@ -102,6 +102,11 @@
     <string name="h_stop">Stop</string>
     <string name="h_pause">Pause</string>
     <string name="h_resume">Resume</string>
+    <string name="h_caption_title">Text with the photo</string>
+    <string name="h_caption_sub">Type it once. It is sent together with every photo, as the photo\'s caption.</string>
+    <string name="h_caption_label">Text to send with the photo</string>
+    <string name="h_caption_off">No text: only the photo is sent.</string>
+    <string name="h_caption_on">This text is added to each photo the app sends.</string>
     <string name="h_hint_license">Activate your license to start</string>
     <string name="h_hint_accessibility">Turn on the accessibility service to start</string>
     <string name="h_needs_you">Needs you</string>

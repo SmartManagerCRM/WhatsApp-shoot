@@ -38,6 +38,7 @@ class ShareLauncher(private val context: Context, private val graph: () -> AppGr
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = shot.format.mime
             putExtra(Intent.EXTRA_STREAM, uri)
+            g.settings.current.captionText.trim().takeIf { it.isNotEmpty() }?.let { putExtra(Intent.EXTRA_TEXT, it) } // WhatsApp shows it as the caption
             clipData = ClipData.newRawUri("screenshot", uri)
             setPackage(pkg)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)

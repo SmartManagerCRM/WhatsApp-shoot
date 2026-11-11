@@ -48,3 +48,8 @@
   There is no revocation and no automatic transfer.
 - Android Keystore behaviour (e.g. key invalidation after factory reset, OEM bugs) varies; Keystore failure blocks activation rather than bypassing it.
 - If the vendor signing key or its passphrase is lost, no further licences can be issued for builds embedding that public key.
+
+## Caption (text with the photo)
+The caption is typed into WhatsApp's caption box on the preview screen (or in the gallery bar) just before Send. WhatsApp's box was not calibrated on a real device before v1.3.0:
+the app finds it by an id containing "caption", otherwise the only editable box that is not the chat's own message box. If the box is not found, or the text cannot be set after 3 tries,
+the photo is sent WITHOUT the text (it never blocks the photo). The diagnostics show `clicked SetCaption: true/false`. If the preview is skipped by WhatsApp, no caption can be added.

@@ -53,3 +53,9 @@
 The caption is typed into WhatsApp's caption box on the preview screen (or in the gallery bar) just before Send. WhatsApp's box was not calibrated on a real device before v1.3.0:
 the app finds it by an id containing "caption", otherwise the only editable box that is not the chat's own message box. If the box is not found, or the text cannot be set after 3 tries,
 the photo is sent WITHOUT the text (it never blocks the photo). The diagnostics show `clicked SetCaption: true/false`. If the preview is skipped by WhatsApp, no caption can be added.
+
+### v1.3.1: where the caption may be typed
+v1.3.0 accepted ANY editable box other than `entry` as the caption box, also inside the gallery panel, where the chat's own message box is still on screen. The likely effect on a
+real phone: the text was typed into the chat's message box behind the gallery, the keyboard opened and the gallery flow lost its Send button. Since v1.3.1 only a box whose id contains "caption" may
+be used inside the gallery panel; any other editable box counts only on the preview screen (no gallery, no menu, no chat message box). The diagnostics line `caption box: named=… other=… preview=… using=…`
+shows what the app saw. Not yet confirmed on a real phone.

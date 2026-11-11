@@ -325,6 +325,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     private var lastSendCands = ""
     private var lastTileLog = ""
     @Volatile private var lastScanMs = 0L
+    private var lastCaptionLog = ""
 
     private fun driveShareFlow(pkg: String) {
         val c = graph.controller
@@ -503,7 +504,14 @@ class WhatsAppAccessibilityService : AccessibilityService() {
 
         // Caption box (preview screen / gallery bar). Only looked for when a caption is configured and the chat's own message box is not what we see.
         val wantedCaption = c.captionText()
-        val captionNode = if (wantedCaption.isEmpty()) null else sc.captionNamed ?: sc.captionAny
+        // Inside the gallery panel the chat's own message box is still on screen: only a box whose id says "caption" may be used there.
+        // Any other editable box is accepted only on the preview screen (no gallery, no menu, no chat message box).
+        val previewScreen = !pickerOpen && !menuOpen && "entry" !in sc.ids && !chatVisible
+        val captionNode = if (wantedCaption.isEmpty()) null else sc.captionNamed ?: (if (previewScreen) sc.captionAny else null)
+        if (wantedCaption.isNotEmpty() && (sc.captionNamed != null || sc.captionAny != null)) {
+            val cd = "caption box: named=${sc.captionNamed?.viewIdResourceName?.substringAfter(":id/")} other=${sc.captionAny?.viewIdResourceName?.substringAfter(":id/")} preview=$previewScreen using=${captionNode != null}"
+            if (cd != lastCaptionLog) { lastCaptionLog = cd; ActivityLog.add(cd) }
+        }
         val captionMatches = captionNode != null && !(Build.VERSION.SDK_INT >= 26 && captionNode.isShowingHintText) && captionNode.text?.toString()?.trim() == wantedCaption
 
         val view = com.smartmanager.whatsappshoot.logic.AttachScreenView(

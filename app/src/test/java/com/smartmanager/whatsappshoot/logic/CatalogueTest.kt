@@ -181,4 +181,31 @@ class CatalogueTest {
         assertEquals("Hello", r.controller.captionText())
         assertNotNull(r.controller.tilePlan())
     }
+
+    @Test fun recognizerThatNeverAnswers_doesNotStopTheSend() {
+        val hang = object : ProductRecognizer { override fun resolve(image: LatestImage, settings: AutomationSettings, callback: (ProductResolution) -> Unit) = Unit }
+        val r = LatestRig(tmp.newFolder(), fullAuto = true, products = hang)
+        r.source.add(1)
+        r.settings = r.settings.copy(imageSource = ImageSource.WHATSAPP_GALLERY, captionText = "Hello")
+        r.controller.start()
+        r.open("Alice", outgoing = 4)
+        assertFalse("still waiting for the reader", r.controller.attachFlowActive)
+        r.scheduler.advance(AutomationController.PRODUCT_TIMEOUT_MS + 100)
+        assertTrue("falls back to the newest photo", r.controller.attachFlowActive)
+        assertEquals("Hello", r.controller.captionText())
+    }
+
+    @Test fun lateAnswerAfterTheTimeout_isIgnored() {
+        var late: ((ProductResolution) -> Unit)? = null
+        val slow = object : ProductRecognizer { override fun resolve(image: LatestImage, settings: AutomationSettings, callback: (ProductResolution) -> Unit) { late = callback } }
+        val r = LatestRig(tmp.newFolder(), fullAuto = true, products = slow)
+        r.source.add(1)
+        r.settings = r.settings.copy(imageSource = ImageSource.WHATSAPP_GALLERY, captionText = "Hello")
+        r.controller.start(); r.open("Alice", outgoing = 4)
+        r.scheduler.advance(AutomationController.PRODUCT_TIMEOUT_MS + 100)
+        assertTrue(r.controller.attachFlowActive)
+        late!!.invoke(ProductResolution.Failed("late"))
+        assertTrue("a late failure must not cancel the running flow", r.controller.attachFlowActive)
+        assertEquals("Hello", r.controller.captionText())
+    }
 }

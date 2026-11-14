@@ -18,5 +18,5 @@ class MlKitTextReader(@Suppress("unused") private val context: Context) : TextRe
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
     override fun read(bitmap: Bitmap): String =
-        Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)), 20, TimeUnit.SECONDS).text
+        Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)), 6, TimeUnit.SECONDS).text
 }

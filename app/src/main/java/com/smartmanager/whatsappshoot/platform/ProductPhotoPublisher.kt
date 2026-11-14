@@ -91,6 +91,9 @@ class ProductPhotoPublisher(private val context: Context) {
         return true
     }
 
+    /** [sweep] on the publisher's own thread, so a slow media-library call can never delay anything else (licence check, lookups). */
+    fun sweepAsync(minAgeSec: Long) { cleaner.execute { sweep(minAgeSec) } }
+
     /** Deletes this app's temporary gallery copies older than [minAgeSec]. */
     fun sweep(minAgeSec: Long) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return

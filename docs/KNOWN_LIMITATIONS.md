@@ -68,3 +68,9 @@ shows what the app saw. Not yet confirmed on a real phone.
 - Android 9 and older (no scoped storage): the catalogue picture cannot be prepared, so nothing is sent for a recognised product.
 - Only used in fully automatic gallery mode. Not verified on a real phone before v1.4.0: the message (several lines) is typed into WhatsApp's caption box like the plain text; if the box is not found the picture goes without it.
 - The ML Kit library declares network permissions for optional telemetry; they are removed from the manifest (CI checks the final APK has no INTERNET permission).
+
+### v1.4.1: the catalogue step can no longer hold up a send
+Possible failure found by reading the 1.4.0 code: the text reader runs on its own thread and only `Exception`s were caught, so a native-library or memory error (`Error`) would end that thread silently,
+the controller would never get an answer and the send would be abandoned after the 12 s lookup watchdog ("nothing sent"). Now: every failure of the reader counts as "no match", the controller
+stops waiting for the catalogue after 8 s and carries on with the newest photo, a late answer is ignored, the reader gives up after 6 s, and the start-up clean-up of old gallery copies runs on its own thread.
+Diagnostics lines to look for: `catalogue: …`.

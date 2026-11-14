@@ -342,7 +342,18 @@ class AutomationController(
         val st = settings()
         if (!st.catalogueEnabled || !st.fullyAutomaticSend || st.imageSource != ImageSource.WHATSAPP_GALLERY) { next(); return }
         val t0 = clock.nowMs()
+        var answered = false
+        // The catalogue step may never make the send wait for long: if the text reader hangs or dies, carry on with the newest photo as before.
+        val timeout = scheduler.schedule(PRODUCT_TIMEOUT_MS) {
+            if (!answered && epoch == captureEpoch && machine.state == AutomationState.CAPTURING_SCREEN) {
+                answered = true
+                ActivityLog.add("catalogue: no answer after ${PRODUCT_TIMEOUT_MS / 1000}s, sending the newest photo as before")
+                next()
+            }
+        }
         products.resolve(image, st) { res ->
+            if (answered) return@resolve
+            answered = true; timeout.cancel()
             if (epoch != captureEpoch || machine.state != AutomationState.CAPTURING_SCREEN) { guard.finish(); return@resolve }
             ActivityLog.add("catalogue: ${res::class.simpleName} (timing: ${clock.nowMs() - t0} ms)")
             when (res) {
@@ -633,6 +644,7 @@ class AutomationController(
         const val SEND_FLOW_TIMEOUT_MS = 25_000L
         const val ATTACH_FLOW_TIMEOUT_MS = 40_000L
         const val CAPTURE_TIMEOUT_MS = 12_000L
+        const val PRODUCT_TIMEOUT_MS = 8_000L
     }
 }
 

@@ -26,7 +26,8 @@ class CatalogueRecognizer(
 
     override fun resolve(image: LatestImage, settings: AutomationSettings, callback: (ProductResolution) -> Unit) {
         worker.execute {
-            val r = try { compute(image, settings) } catch (e: Exception) { ProductResolution.Failed("unexpected ${e.javaClass.simpleName}") }
+            // Throwable, not Exception: a native-library or memory error in the text reader must still end in an answer, never a silent dead thread.
+            val r = try { compute(image, settings) } catch (e: Throwable) { ActivityLog.add("catalogue: failed (${e.javaClass.simpleName})"); ProductResolution.NoMatch }
             main.post { callback(r) }
         }
     }
@@ -47,7 +48,7 @@ class CatalogueRecognizer(
     /** Recognised text of the picture at [uri], or null if the picture or the reader failed (logged without any text). */
     private fun readText(uri: Uri): String? {
         val bmp = CatalogueStore.decode(context, uri, OCR_SIDE) ?: run { ActivityLog.add("catalogue: photo unreadable"); return null }
-        return try { reader.read(bmp) } catch (e: Exception) { ActivityLog.add("catalogue: text reader failed (${e.javaClass.simpleName})"); null }
+        return try { reader.read(bmp) } catch (e: Throwable) { ActivityLog.add("catalogue: text reader failed (${e.javaClass.simpleName})"); null }
     }
 
     /** For the "try it" card: what the phone reads on [uri] and which product it would pick. */

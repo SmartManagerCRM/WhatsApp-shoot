@@ -83,19 +83,19 @@ class CatalogueTest {
     // ---- the message sent with the picture ----
 
     @Test fun caption_nameAndPriceThenYourText() {
-        assertEquals("Watch Pro 2\n450 TND\n\nCall us to order", CaptionBuilder.build(watch, "  Call us to order ", includeDescription = false))
+        assertEquals("Watch Pro 2\n450 TND\n\nCall us to order", CaptionBuilder.build(watch, "  Call us to order "))
     }
 
-    @Test fun caption_descriptionOnlyWhenAsked() {
-        assertEquals("Galaxy S24 Ultra\n3 200 TND", CaptionBuilder.build(phone, "", includeDescription = false))
-        assertEquals("Galaxy S24 Ultra\n3 200 TND\n256 GB, titanium grey\n\nHi", CaptionBuilder.build(phone, "Hi", includeDescription = true))
+    @Test fun caption_includesNamePriceDescriptionThenYourText() {
+        assertEquals("Galaxy S24 Ultra\n3 200 TND\n256 GB, titanium grey\n\nHi", CaptionBuilder.build(phone, "Hi"))
+        assertEquals("Galaxy S24 Ultra\n3 200 TND\n256 GB, titanium grey", CaptionBuilder.build(phone, ""))
     }
 
     @Test fun caption_skipsEmptyParts() {
-        assertEquals("Watch Pro 2\n450 TND", CaptionBuilder.build(watch, "", includeDescription = true))
-        assertEquals("Hi", CaptionBuilder.build(null, " Hi ", includeDescription = true))
-        assertEquals("", CaptionBuilder.build(null, "", false))
-        assertEquals("Free item", CaptionBuilder.build(Product("z", "Free item", "", ""), "", false))
+        assertEquals("Watch Pro 2\n450 TND", CaptionBuilder.build(watch, ""))
+        assertEquals("Hi", CaptionBuilder.build(null, " Hi "))
+        assertEquals("", CaptionBuilder.build(null, ""))
+        assertEquals("Free item", CaptionBuilder.build(Product("z", "Free item", "", ""), ""))
     }
 
     @Test fun ownGalleryCopies_areNeverTheNewestPhoto() {
@@ -122,18 +122,14 @@ class CatalogueTest {
         return r
     }
 
-    private fun matched(r: LatestRig): ProductResolution.Matched {
-        val img = LatestImage(cand(99, r.clock, ageMs = 0, folder = "Pictures/WSS Products/"), "product-a1", skippedNewer = false)
-        return ProductResolution.Matched(watch, img, CaptionBuilder.build(watch, "Hello", false))
-    }
+    private fun matched() = ProductResolution.Matched(watch, CaptionBuilder.build(watch, "Hello"))
 
-    @Test fun matchedProduct_isSentWithItsCaption_inTheLandingFlow() {
-        val rec = FakeRecognizer(ProductResolution.NoMatch); val r = rig(rec)
-        rec.result = matched(r)
+    @Test fun matchedProduct_sendsTheNewestPhoto_withNamePriceAndYourText() {
+        val rec = FakeRecognizer(matched()); val r = rig(rec)
         r.open("Alice", outgoing = 4)
         assertEquals(1, rec.calls)
         assertTrue(r.controller.attachFlowActive)
-        assertEquals("nothing newer than the just-published picture", TilePlan(verified = true, skip = 0), r.controller.tilePlan())
+        assertEquals("the normal newest-photo plan, no replaced picture", TilePlan(verified = false, skip = 0), r.controller.tilePlan())
         assertEquals("Watch Pro 2\n450 TND\n\nHello", r.controller.captionText())
         val tick = { r.clock.advance(AttachFlowEngine.CLICK_GAP_MS + 100) }
         r.controller.attachStep(AttachScreenView(chatVisible = true, attachButton = true, outgoingMediaCount = 4)); tick()
@@ -142,7 +138,7 @@ class CatalogueTest {
         r.clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100); r.controller.attachStep(grid)
         r.clock.advance(AttachFlowEngine.ALBUM_SETTLE_MS + 100)
         assertEquals(AttachAction.ClickThumbnail, r.controller.attachStep(grid)); tick()
-        assertEquals("the catalogue caption is typed before Send", AttachAction.SetCaption,
+        assertEquals("the caption is typed before Send", AttachAction.SetCaption,
             r.controller.attachStep(AttachScreenView(chatVisible = false, sendButton = true, captionField = true)))
     }
 
@@ -155,24 +151,15 @@ class CatalogueTest {
         assertEquals(TilePlan(verified = false, skip = 0), r.controller.tilePlan()) // the normal newest-photo plan
     }
 
-    @Test fun recognisedButPictureCannotBePrepared_sendsNothing() {
-        val rec = FakeRecognizer(ProductResolution.Failed("boom")); val r = rig(rec)
-        r.open("Alice", outgoing = 4)
-        assertFalse(r.controller.attachFlowActive)
-        assertEquals(StatusMessage.PRODUCT_FAILED, r.message)
-        assertEquals(0, r.launcher.calls)
-    }
-
     @Test fun catalogueSwitchedOff_orNotFullyAutomatic_neverAsksTheRecognizer() {
-        val off = FakeRecognizer(ProductResolution.Failed("x")); val r1 = rig(off, enabled = false); r1.open("Alice", outgoing = 4)
+        val off = FakeRecognizer(ProductResolution.NoMatch); val r1 = rig(off, enabled = false); r1.open("Alice", outgoing = 4)
         assertEquals(0, off.calls); assertTrue(r1.controller.attachFlowActive)
-        val manual = FakeRecognizer(ProductResolution.Failed("x")); val r2 = rig(manual, auto = false); r2.open("Alice", outgoing = 4)
+        val manual = FakeRecognizer(ProductResolution.NoMatch); val r2 = rig(manual, auto = false); r2.open("Alice", outgoing = 4)
         assertEquals(0, manual.calls)
     }
 
     @Test fun aMatchIsOnlyUsedOnce_theNextChatStartsClean() {
-        val rec = FakeRecognizer(ProductResolution.NoMatch); val r = rig(rec)
-        rec.result = matched(r)
+        val rec = FakeRecognizer(matched()); val r = rig(rec)
         r.open("Alice", outgoing = 4)
         assertEquals("Watch Pro 2\n450 TND\n\nHello", r.controller.captionText())
         r.controller.stop()
@@ -204,8 +191,8 @@ class CatalogueTest {
         r.controller.start(); r.open("Alice", outgoing = 4)
         r.scheduler.advance(AutomationController.PRODUCT_TIMEOUT_MS + 100)
         assertTrue(r.controller.attachFlowActive)
-        late!!.invoke(ProductResolution.Failed("late"))
-        assertTrue("a late failure must not cancel the running flow", r.controller.attachFlowActive)
+        late!!.invoke(ProductResolution.Matched(watch, "late caption"))
+        assertTrue("a late answer must not disturb the running flow", r.controller.attachFlowActive)
         assertEquals("Hello", r.controller.captionText())
     }
 }

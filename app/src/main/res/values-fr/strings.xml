@@ -308,11 +308,9 @@
     <string name="c_title">Catalogue</string>
     <string name="c_subtitle">Vos produits : photo, nom, prix, description</string>
     <string name="c_recog_title">Reconnaissance des produits</string>
-    <string name="c_recog_sub">L\'application lit la photo la plus récente du téléphone. Si elle nomme l\'un de vos produits, elle envoie la photo du catalogue de ce produit avec le nom, le prix et votre texte, à la place de la photo récente.</string>
+    <string name="c_recog_sub">L\'application lit la photo la plus récente du téléphone. Si le texte qu\'elle contient nomme l\'un de vos produits, la photo est envoyée avec le nom, le prix et la description de ce produit, puis votre texte.</string>
     <string name="c_recog_switch">Reconnaître les produits</string>
-    <string name="c_recog_switch_help">Nécessite l\'envoi entièrement automatique. Si aucun produit n\'est reconnu, la photo la plus récente est envoyée comme avant.</string>
-    <string name="c_desc_switch">Ajouter la description</string>
-    <string name="c_desc_switch_help">Envoie aussi la description du produit (le nom et le prix sont toujours envoyés).</string>
+    <string name="c_recog_switch_help">Nécessite l\'envoi entièrement automatique. Si aucun produit n\'est reconnu, la photo est envoyée avec seulement votre texte.</string>
     <string name="c_needs_auto">Activez l\'envoi entièrement automatique dans les réglages pour que cela fonctionne.</string>
     <string name="c_count">%1$d produits</string>
     <string name="c_add">Ajouter un produit</string>
@@ -340,5 +338,4 @@
     <string name="c_test_text">Lu : %1$s</string>
     <string name="c_test_match">Produit : %1$s</string>
     <string name="c_test_nomatch">Aucun produit ne correspond.</string>
-    <string name="status_product_failed">Un produit a été reconnu mais sa photo du catalogue n\'a pas pu être préparée. Rien n\'a été envoyé.</string>
 </resources>

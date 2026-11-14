@@ -76,8 +76,8 @@ class AppGraph private constructor(app: Application) {
 
     private val latestProvider = MediaStoreLatestProvider(app, repository, clock)
     val catalogue = CatalogueStore(app)
-    private val productPublisher = ProductPhotoPublisher(app).also { it.sweepAsync(minAgeSec = 180) } // leftovers of an earlier run
-    val recognizer = CatalogueRecognizer(app, catalogue, productPublisher, MlKitTextReader(app))
+    init { LegacyProductCopies.removeAsync(app) } // gallery copies made by versions 1.4.0-1.4.2
+    val recognizer = CatalogueRecognizer(app, catalogue, MlKitTextReader(app))
     val ledger = PersistentLedger(PrefsLedgerStorage(app))
 
     val controller = AutomationController(

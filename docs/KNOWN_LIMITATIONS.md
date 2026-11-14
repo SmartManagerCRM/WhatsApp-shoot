@@ -80,3 +80,8 @@ A real-phone report (Infinix X6856, Android 16, v1.4.1) showed the text reader a
 "newest by every date" check, so nothing was sent. Most likely cause: after the copy is finished the phone's media scanner rewrites its dates and leaves DATE_TAKEN empty (the copy had no EXIF capture time), so by DATE_TAKEN the copy was not first.
 Now the copy carries an EXIF capture time (= now, with time zone offset), DATE_TAKEN is put back and re-read if the scanner lost it, and a failed check logs which date failed and the values involved:
 `catalogue: gallery copy failed: DATE_x: … (own=…, first=…, second=…)`. If it still fails, that line says why.
+
+## v1.5.0: the newest photo is sent, the catalogue only supplies the message
+Versions 1.4.0-1.4.2 replaced the photo with the product's catalogue picture by putting a temporary copy into the gallery. On a real phone that step was refused by the "newest by every date" check
+and nothing was sent, so it was removed: no gallery copies are made any more (copies left by older versions are deleted at start-up). A recognised product now only changes the **message**
+(name, price, description, then your text); the photo is always the gallery's newest, chosen by the same rules and checks as before. Everything said above about the gallery copy and Android 10+ no longer applies.

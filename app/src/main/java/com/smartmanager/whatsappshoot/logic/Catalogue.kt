@@ -5,7 +5,7 @@ import java.text.Normalizer
 /** One catalogue entry. Its picture is stored by the platform layer under the product id. */
 data class Product(val id: String, val name: String, val price: String, val description: String)
 
-/** Name given to the temporary copies of a product picture put in the phone's gallery (they are never offered as "the newest photo"). */
+/** Name of the temporary gallery copies that versions 1.4.0-1.4.2 made of product pictures (removed at start-up; never "the newest photo"). */
 object ProductPhotos {
     const val PREFIX = "WSS_PRODUCT_"
     const val ALBUM_PATH = "Pictures/WSS Products"
@@ -86,9 +86,9 @@ object ProductMatcher {
     }
 }
 
-/** The message sent with the product picture: name, price, optionally the description, then the user's own text. */
+/** The message sent with the newest photo: the product's name, price and description (each when filled in), then the user's own text. */
 object CaptionBuilder {
-    fun build(product: Product?, userText: String, includeDescription: Boolean): String {
+    fun build(product: Product?, userText: String, includeDescription: Boolean = true): String {
         val lines = ArrayList<String>()
         if (product != null) {
             lines += product.name.trim()
@@ -113,15 +113,12 @@ sealed class ProductResolution {
     /** The photo names no catalogue product (or could not be read): the newest photo is sent as before. */
     object NoMatch : ProductResolution()
 
-    /** [published] is the product's registered picture, put in the gallery as the newest photo; [caption] is the message to send with it. */
-    data class Matched(val product: Product, val published: LatestImage, val caption: String) : ProductResolution()
-
-    /** A product was recognised but its picture could not be prepared: nothing is sent. */
-    data class Failed(val reason: String) : ProductResolution()
+    /** The photo names [product]: the newest photo is sent with [caption] (name, price, description and the user's text). */
+    data class Matched(val product: Product, val caption: String) : ProductResolution()
 }
 
 interface ProductRecognizer {
-    /** Reads [image], matches it against the catalogue and prepares the product picture. Callback on the main thread, exactly once. */
+    /** Reads [image] and matches it against the catalogue. Callback on the main thread, exactly once. */
     fun resolve(image: LatestImage, settings: AutomationSettings, callback: (ProductResolution) -> Unit)
 }
 

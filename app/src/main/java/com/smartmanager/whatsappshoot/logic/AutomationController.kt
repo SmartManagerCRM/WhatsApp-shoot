@@ -47,7 +47,7 @@ class AutomationController(
     private var activeTilePlan: TilePlan? = null
     private var visitStartMs = 0L
     private var attachLanding = false
-    private var pendingProduct: ProductResolution.Matched? = null
+    private var pendingCaption: String? = null
     private var activeCaption = ""
     private var shareTimeout: Cancellable? = null
     private var captureEpoch = 0
@@ -334,11 +334,11 @@ class AutomationController(
     }
 
     /**
-     * Catalogue step (fully automatic gallery mode only): if the newest photo names a catalogue product, remember that product's picture and caption so the
-     * attach flow sends them instead. No match = the newest photo goes as before; a recognised product whose picture cannot be prepared sends nothing.
+     * Catalogue step (fully automatic gallery mode only): if the newest photo names a catalogue product, remember its caption (name, price, description and the
+     * user's text) so the attach flow types it with the newest photo. The photo itself is never replaced. No match = the newest photo with just the user's text.
      */
     private fun resolveProduct(image: LatestImage, epoch: Int, next: () -> Unit) {
-        pendingProduct = null
+        pendingCaption = null
         val st = settings()
         if (!st.catalogueEnabled || !st.fullyAutomaticSend || st.imageSource != ImageSource.WHATSAPP_GALLERY) { next(); return }
         val t0 = clock.nowMs()
@@ -358,8 +358,7 @@ class AutomationController(
             ActivityLog.add("catalogue: ${res::class.simpleName} (timing: ${clock.nowMs() - t0} ms)")
             when (res) {
                 ProductResolution.Disabled, ProductResolution.NoMatch -> next()
-                is ProductResolution.Matched -> { pendingProduct = res; next() }
-                is ProductResolution.Failed -> { ActivityLog.add("catalogue: ${res.reason}"); skipWith(StatusMessage.PRODUCT_FAILED) }
+                is ProductResolution.Matched -> { pendingCaption = res.caption; next() }
             }
         }
     }
@@ -446,11 +445,10 @@ class AutomationController(
         if (allowSend) {
             // Fully automatic: stay in the open chat and use WhatsApp's own attach menu (no recipient list, so no name matching).
             val galleryMode = settings().imageSource == ImageSource.WHATSAPP_GALLERY
-            val product = pendingProduct?.takeIf { galleryMode }
-            pendingProduct = null
-            // A catalogue picture was just put in the gallery as the newest photo (the phone verified it is the newest by every date): nothing can be newer.
-            activeTilePlan = if (product != null) TilePlan(verified = true, skip = 0) else if (galleryMode) shotImage?.let { latest.tilePlan(it) } ?: TilePlan(verified = false, skip = 0) else null
-            activeCaption = product?.caption ?: settings().captionText.trim()
+            val productCaption = pendingCaption?.takeIf { galleryMode }
+            pendingCaption = null
+            activeTilePlan = if (galleryMode) shotImage?.let { latest.tilePlan(it) } ?: TilePlan(verified = false, skip = 0) else null
+            activeCaption = productCaption ?: settings().captionText.trim()
             val route = if (galleryMode) GalleryRoute.LANDING else shotImage?.let { latest.galleryRoute(it, settings().screenshotFolders) } ?: GalleryRoute.ALBUM
             if (route == GalleryRoute.BLOCKED_VIDEO) {
                 ActivityLog.add("a video newer than the screenshot is in the screenshots folder: not sending")

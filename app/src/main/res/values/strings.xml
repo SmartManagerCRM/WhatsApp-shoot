@@ -308,11 +308,9 @@
     <string name="c_title">Catalogue</string>
     <string name="c_subtitle">Your products: picture, name, price, description</string>
     <string name="c_recog_title">Product recognition</string>
-    <string name="c_recog_sub">The app reads the newest photo on the phone. If it names one of your products, it sends that product\'s catalogue picture with the name, the price and your text, instead of the newest photo.</string>
+    <string name="c_recog_sub">The app reads the newest photo on the phone. If the text on it names one of your products, the photo is sent with that product\'s name, price and description, then your text.</string>
     <string name="c_recog_switch">Recognise products</string>
-    <string name="c_recog_switch_help">Needs fully automatic sending. If no product is recognised, the newest photo is sent as before.</string>
-    <string name="c_desc_switch">Add the description</string>
-    <string name="c_desc_switch_help">Also send the product description (name and price are always sent).</string>
+    <string name="c_recog_switch_help">Needs fully automatic sending. If no product is recognised, the photo is sent with just your text.</string>
     <string name="c_needs_auto">Turn on fully automatic sending in Settings for this to work.</string>
     <string name="c_count">%1$d products</string>
     <string name="c_add">Add product</string>
@@ -340,5 +338,4 @@
     <string name="c_test_text">Read: %1$s</string>
     <string name="c_test_match">Product: %1$s</string>
     <string name="c_test_nomatch">No product matches.</string>
-    <string name="status_product_failed">A product was recognised but its catalogue picture could not be prepared. Nothing was sent.</string>
 </resources>

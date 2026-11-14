@@ -46,10 +46,8 @@ data class AutomationSettings(
     val directSelectExperimental: Boolean = false,
     /** Text sent together with the picture (caption). Empty = picture only. Typed once on the Home screen. */
     val captionText: String = "",
-    /** Catalogue: read the newest photo, and when it names a catalogue product send that product's registered picture instead. */
+    /** Catalogue: read the newest photo, and when it names a catalogue product send the photo with the product's name, price and description. */
     val catalogueEnabled: Boolean = true,
-    /** Catalogue caption: also add the product description (name and price are always added). */
-    val captionIncludeDescription: Boolean = false,
 ) {
     /** Short settle time before an AUTOMATIC capture so the conversation has finished rendering. */
     val effectiveDelayMs: Long

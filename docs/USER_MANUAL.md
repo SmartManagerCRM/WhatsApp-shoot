@@ -54,14 +54,15 @@ Settings > Language: System default, English, العربية (Arabic, right-to-l
 On the Home screen, the card **Text with the photo** holds a message you type once. The app puts it into WhatsApp's caption box and sends it together with every photo.
 Leave the box empty to send the photo only. The text is stored only on the phone (settings), never sent anywhere except inside WhatsApp with the photo.
 
-## Catalogue (v1.4.0)
+## Catalogue (v1.5.0)
 The **Catalogue** tab holds your products: a picture, a name, a price and a description.
-1. Tap **Add product**, choose the product picture, type the **name exactly as it is written on the photos you will send** (for example the model name), the price and optionally a description.
+1. Tap **Add product**, choose a picture, type the **name exactly as it is written on the photos you will send** (for example the model name), the price and a description.
 2. Keep **Recognise products** on and **fully automatic sending** on (Settings).
-3. When a chat is opened the app reads the newest photo on the phone (on the phone, offline). If the text on it contains a product's name, the app sends **that product's catalogue picture**
-   instead of the newest photo, with a message made of the **name, the price** (and the description if you switched it on) and then **your text** from the Home screen.
-4. If no product is recognised, the newest photo is sent as before, with just your text.
+3. When a chat is opened the app sends the **newest photo in the gallery**, as always. Before sending it reads the text on that photo (on the phone, offline). If the text contains a product's name,
+   the message sent with the photo is made of that product's **name, price and description** (each only if filled in) followed by **your text** from the Home screen.
+4. If no product is recognised, the newest photo is sent with just your text.
 5. Use **Try it** on the Catalogue tab to choose a photo and see what the phone reads on it and which product it would pick, without sending anything.
 
 How a name is matched: case, accents and punctuation do not matter; all words of the product name must be found (a name of 4+ words may miss one); a word of 5+ letters tolerates one misread letter.
 Two products with an equal match are treated as "no match" (nothing is guessed). The text reader handles Latin letters and digits (English, French, model codes); it does **not** read Arabic script.
+The catalogue picture is for your own overview; the photo that is sent is always the newest one in the gallery.

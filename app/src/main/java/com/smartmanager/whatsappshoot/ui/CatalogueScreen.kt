@@ -69,8 +69,6 @@ fun CatalogueScreen(graph: AppGraph) {
 
         SectionCard(stringResource(R.string.c_recog_title), stringResource(R.string.c_recog_sub)) {
             SwitchSetting(stringResource(R.string.c_recog_switch), stringResource(R.string.c_recog_switch_help), settings.catalogueEnabled) { b -> graph.settings.update { it.copy(catalogueEnabled = b) } }
-            RowDivider()
-            SwitchSetting(stringResource(R.string.c_desc_switch), stringResource(R.string.c_desc_switch_help), settings.captionIncludeDescription) { b -> graph.settings.update { it.copy(captionIncludeDescription = b) } }
             if (settings.catalogueEnabled && !settings.fullyAutomaticSend) {
                 Text(stringResource(R.string.c_needs_auto), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }

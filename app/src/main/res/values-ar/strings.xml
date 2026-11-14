@@ -308,11 +308,9 @@
     <string name="c_title">الكتالوج</string>
     <string name="c_subtitle">منتجاتك: الصورة والاسم والسعر والوصف</string>
     <string name="c_recog_title">التعرّف على المنتجات</string>
-    <string name="c_recog_sub">يقرأ التطبيق أحدث صورة في الهاتف. إذا ذكرت أحد منتجاتك، يرسل صورة هذا المنتج من الكتالوج مع الاسم والسعر ونصّك بدل أحدث صورة.</string>
+    <string name="c_recog_sub">يقرأ التطبيق أحدث صورة في الهاتف. إذا ذكر النص عليها أحد منتجاتك، تُرسل الصورة مع اسم هذا المنتج وسعره ووصفه، ثم نصّك.</string>
     <string name="c_recog_switch">التعرّف على المنتجات</string>
-    <string name="c_recog_switch_help">يتطلب الإرسال التلقائي الكامل. إذا لم يُعرف أي منتج تُرسل أحدث صورة كما كان.</string>
-    <string name="c_desc_switch">إضافة الوصف</string>
-    <string name="c_desc_switch_help">يرسل أيضًا وصف المنتج (يُرسل الاسم والسعر دائمًا).</string>
+    <string name="c_recog_switch_help">يتطلب الإرسال التلقائي الكامل. إذا لم يُعرف أي منتج تُرسل الصورة مع نصّك فقط.</string>
     <string name="c_needs_auto">فعّل الإرسال التلقائي الكامل في الإعدادات حتى تعمل هذه الميزة.</string>
     <string name="c_count">%1$d منتجات</string>
     <string name="c_add">إضافة منتج</string>
@@ -340,5 +338,4 @@
     <string name="c_test_text">المقروء: %1$s</string>
     <string name="c_test_match">المنتج: %1$s</string>
     <string name="c_test_nomatch">لا يوجد منتج مطابق.</string>
-    <string name="status_product_failed">تم التعرف على منتج لكن تعذّر تجهيز صورته من الكتالوج. لم يتم إرسال شيء.</string>
 </resources>

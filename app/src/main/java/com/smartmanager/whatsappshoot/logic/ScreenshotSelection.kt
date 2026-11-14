@@ -142,6 +142,7 @@ class ScreenshotSelector(
             .filter { anyFolder || ScreenshotFolderMatcher.matches(it.folder, names) }
             .filter { it.mime?.lowercase() in ImageFormats.SUPPORTED_MIME }
             .filter { !it.pending && !it.trashed && it.sizeBytes > 0 }
+            .filter { it.displayName?.startsWith(ProductPhotos.PREFIX) != true } // temporary copies of catalogue pictures are never "the newest photo"
             .filter { it.effectiveDateMs <= now - minAgeMs }
             .sortedWith(compareByDescending<MediaCandidate> { it.effectiveDateMs }.thenByDescending { it.dateModifiedSec }.thenByDescending { it.id })
             .toList()

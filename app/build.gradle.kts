@@ -28,8 +28,8 @@ android {
         applicationId = "com.smartmanager.whatsappshoot"
         minSdk = 26
         targetSdk = 35
-        versionCode = 20
-        versionName = "1.3.2"
+        versionCode = 21
+        versionName = "1.4.0"
 
         buildConfigField("String", "LICENSE_PUBLIC_KEY", "\"$licensePublicKey\"")
     }
@@ -86,6 +86,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.foundation:foundation")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // On-device text reader for the catalogue (Latin script). Bundled model: works offline, no download. Its network permissions are removed in the manifest.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     // coil/glide intentionally NOT used: the preview decodes the local file with BitmapFactory.
 
     testImplementation("junit:junit:4.13.2")

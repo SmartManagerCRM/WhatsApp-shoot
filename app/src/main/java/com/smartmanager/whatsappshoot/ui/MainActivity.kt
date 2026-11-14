@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -51,6 +52,7 @@ private fun Root(graph: AppGraph) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val destinations = listOf(
         Destination(R.string.nav_home, Icons.Filled.Home),
+        Destination(R.string.nav_catalogue, Icons.Filled.ShoppingCart),
         Destination(R.string.nav_settings, Icons.Filled.Settings),
         Destination(R.string.nav_license, Icons.Filled.Lock),
         Destination(R.string.nav_privacy, Icons.Filled.Info),
@@ -66,9 +68,10 @@ private fun Root(graph: AppGraph) {
     ) { inner ->
         Box(Modifier.padding(inner)) {
             when (tab) {
-                0 -> HomeScreen(graph, openLicense = { tab = 2 }, openSettings = { tab = 1 })
-                1 -> SettingsScreen(graph)
-                2 -> LicenseScreen(graph)
+                0 -> HomeScreen(graph, openLicense = { tab = 3 }, openSettings = { tab = 2 })
+                1 -> CatalogueScreen(graph)
+                2 -> SettingsScreen(graph)
+                3 -> LicenseScreen(graph)
                 else -> PrivacyScreen()
             }
         }

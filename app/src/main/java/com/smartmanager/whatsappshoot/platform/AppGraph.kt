@@ -75,12 +75,15 @@ class AppGraph private constructor(app: Application) {
     }
 
     private val latestProvider = MediaStoreLatestProvider(app, repository, clock)
+    val catalogue = CatalogueStore(app)
+    private val productPublisher = ProductPhotoPublisher(app).also { p -> bg.execute { p.sweep(minAgeSec = 180) } } // leftovers of an earlier run
+    val recognizer = CatalogueRecognizer(app, catalogue, productPublisher, MlKitTextReader(app))
     val ledger = PersistentLedger(PrefsLedgerStorage(app))
 
     val controller = AutomationController(
         classifier, { settings.current }, engine, repository, observer, shareLauncher, scheduler, clock,
         isLicensed = { license.isActive() },
-        latest = latestProvider, ledger = ledger, identitySalt = IdentitySalt.get(app),
+        latest = latestProvider, ledger = ledger, identitySalt = IdentitySalt.get(app), products = recognizer,
     )
 
     /** Watches the media library only while a session is running (and only matters for "new screenshot only"). */

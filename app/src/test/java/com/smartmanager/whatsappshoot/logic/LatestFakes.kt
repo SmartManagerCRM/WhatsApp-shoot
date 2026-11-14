@@ -72,6 +72,7 @@ class LatestRig(
     behavior: SendBehavior = SendBehavior.ONCE_PER_CHAT,
     mode: CaptureMode = CaptureMode.AUTOMATIC,
     fullAuto: Boolean = false,
+    products: ProductRecognizer = NoProducts,
 ) {
     val clock = FakeClock()
     val scheduler = FakeScheduler(clock)
@@ -89,7 +90,7 @@ class LatestRig(
     }
     val controller = AutomationController(
         ScreenClassifier(ownPackage = "com.smartmanager.whatsappshoot"), { settings }, engine, repo, observer, launcher, scheduler, clock,
-        { licensed }, provider, ledger, salt,
+        { licensed }, provider, ledger, salt, products,
     )
     val state get() = controller.view.state
     val message get() = controller.view.message

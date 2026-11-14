@@ -23,6 +23,8 @@ class AutomationController(
     private val ledger: SentLedger = InMemoryLedger(),
     /** Per-install secret salt for conversation hashes, so ledger keys stay stable across restarts. */
     private val identitySalt: ByteArray = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) },
+    /** Catalogue: recognises a product on the newest photo and prepares its registered picture. */
+    private val products: ProductRecognizer = NoProducts,
 ) {
     private val machine = AutomationStateMachine()
     private val guard = CaptureGuard(clock)
@@ -45,6 +47,8 @@ class AutomationController(
     private var activeTilePlan: TilePlan? = null
     private var visitStartMs = 0L
     private var attachLanding = false
+    private var pendingProduct: ProductResolution.Matched? = null
+    private var activeCaption = ""
     private var shareTimeout: Cancellable? = null
     private var captureEpoch = 0
     private var captureWatchdog: Cancellable? = null
@@ -318,7 +322,7 @@ class AutomationController(
                         SkipReason.NOT_NEWER -> StatusMessage.NOT_NEWER
                     })
                     is SendDecision.NeedManual -> stageLatest(image, StatusMessage.IDENTITY_UNRELIABLE, epoch)
-                    SendDecision.Proceed -> stageLatest(image, if (image.skippedNewer) StatusMessage.NEWER_SCREENSHOT_UNREADABLE else null, epoch)
+                    SendDecision.Proceed -> resolveProduct(image, epoch) { stageLatest(image, if (image.skippedNewer) StatusMessage.NEWER_SCREENSHOT_UNREADABLE else null, epoch) }
                 }
             }
             SelectionResult.NoScreenshots -> skipWith(StatusMessage.NO_SCREENSHOT)
@@ -326,6 +330,26 @@ class AutomationController(
             SelectionResult.PartialAccess -> skipWith(StatusMessage.MEDIA_PERMISSION_PARTIAL)
             SelectionResult.AllUnreadable -> skipWith(StatusMessage.SCREENSHOT_UNREADABLE)
             SelectionResult.Failed -> skipWith(StatusMessage.CAPTURE_FAILED)
+        }
+    }
+
+    /**
+     * Catalogue step (fully automatic gallery mode only): if the newest photo names a catalogue product, remember that product's picture and caption so the
+     * attach flow sends them instead. No match = the newest photo goes as before; a recognised product whose picture cannot be prepared sends nothing.
+     */
+    private fun resolveProduct(image: LatestImage, epoch: Int, next: () -> Unit) {
+        pendingProduct = null
+        val st = settings()
+        if (!st.catalogueEnabled || !st.fullyAutomaticSend || st.imageSource != ImageSource.WHATSAPP_GALLERY) { next(); return }
+        val t0 = clock.nowMs()
+        products.resolve(image, st) { res ->
+            if (epoch != captureEpoch || machine.state != AutomationState.CAPTURING_SCREEN) { guard.finish(); return@resolve }
+            ActivityLog.add("catalogue: ${res::class.simpleName} (timing: ${clock.nowMs() - t0} ms)")
+            when (res) {
+                ProductResolution.Disabled, ProductResolution.NoMatch -> next()
+                is ProductResolution.Matched -> { pendingProduct = res; next() }
+                is ProductResolution.Failed -> { ActivityLog.add("catalogue: ${res.reason}"); skipWith(StatusMessage.PRODUCT_FAILED) }
+            }
         }
     }
 
@@ -411,7 +435,11 @@ class AutomationController(
         if (allowSend) {
             // Fully automatic: stay in the open chat and use WhatsApp's own attach menu (no recipient list, so no name matching).
             val galleryMode = settings().imageSource == ImageSource.WHATSAPP_GALLERY
-            activeTilePlan = if (galleryMode) shotImage?.let { latest.tilePlan(it) } ?: TilePlan(verified = false, skip = 0) else null
+            val product = pendingProduct?.takeIf { galleryMode }
+            pendingProduct = null
+            // A catalogue picture was just put in the gallery as the newest photo (the phone verified it is the newest by every date): nothing can be newer.
+            activeTilePlan = if (product != null) TilePlan(verified = true, skip = 0) else if (galleryMode) shotImage?.let { latest.tilePlan(it) } ?: TilePlan(verified = false, skip = 0) else null
+            activeCaption = product?.caption ?: settings().captionText.trim()
             val route = if (galleryMode) GalleryRoute.LANDING else shotImage?.let { latest.galleryRoute(it, settings().screenshotFolders) } ?: GalleryRoute.ALBUM
             if (route == GalleryRoute.BLOCKED_VIDEO) {
                 ActivityLog.add("a video newer than the screenshot is in the screenshots folder: not sending")
@@ -421,7 +449,7 @@ class AutomationController(
             val landing = galleryMode || (settings().landingGalleryFirst && route == GalleryRoute.LANDING)
             ActivityLog.add(if (galleryMode) "newest photo mode: plan verified=${activeTilePlan?.verified} newerVideos=${activeTilePlan?.skip}" else if (landing) "screenshot is the newest item on the phone: using the landing gallery" else "using the Screenshots album")
             attachLanding = landing
-            attachEngine = AttachFlowEngine(baselineOutgoing, clock, landing, settings().captionText.trim())
+            attachEngine = AttachFlowEngine(baselineOutgoing, clock, landing, activeCaption)
             shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
             ActivityLog.add("in-chat attach flow started (timing: ${sinceVisit()} ms after the chat appeared)")
             return
@@ -472,7 +500,7 @@ class AutomationController(
     fun sinceVisit(): Long = if (visitStartMs > 0) clock.nowMs() - visitStartMs else -1
 
     /** The text to type into WhatsApp's caption box (trimmed); empty when none is configured. */
-    fun captionText(): String = settings().captionText.trim()
+    fun captionText(): String = if (attachFlowActive) activeCaption else settings().captionText.trim()
 
     /** Folder names shown as albums in WhatsApp's gallery. */
     fun albumNames(): List<String> = ScreenshotFolderMatcher.leafNames(settings().screenshotFolders)

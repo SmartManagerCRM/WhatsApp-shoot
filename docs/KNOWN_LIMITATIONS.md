@@ -59,3 +59,12 @@ v1.3.0 accepted ANY editable box other than `entry` as the caption box, also ins
 real phone: the text was typed into the chat's message box behind the gallery, the keyboard opened and the gallery flow lost its Send button. Since v1.3.1 only a box whose id contains "caption" may
 be used inside the gallery panel; any other editable box counts only on the preview screen (no gallery, no menu, no chat message box). The diagnostics line `caption box: named=… other=… preview=… using=…`
 shows what the app saw. Not yet confirmed on a real phone.
+
+## Catalogue (v1.4.0)
+- **Reading**: the newest photo is read with Google ML Kit's on-device Latin text reader (model bundled, no download, no network). Arabic text is not read. Stylised, tiny or very noisy text may not be read; use *Try it* to check.
+- **How the product picture is sent**: the app puts a copy of the product picture into the phone's gallery (album "WSS Products", Android 10+) as a brand-new photo, checks that the phone lists it as the newest image by DATE_ADDED, DATE_MODIFIED and DATE_TAKEN,
+  and lets the normal "first tile of WhatsApp's gallery" flow send it. If that check fails, nothing is sent ("A product was recognised but its catalogue picture could not be prepared").
+  The copy is deleted about 2.5 minutes after it was created (and leftovers on the next start). While it exists, other apps with gallery access can see it.
+- Android 9 and older (no scoped storage): the catalogue picture cannot be prepared, so nothing is sent for a recognised product.
+- Only used in fully automatic gallery mode. Not verified on a real phone before v1.4.0: the message (several lines) is typed into WhatsApp's caption box like the plain text; if the box is not found the picture goes without it.
+- The ML Kit library declares network permissions for optional telemetry; they are removed from the manifest (CI checks the final APK has no INTERNET permission).

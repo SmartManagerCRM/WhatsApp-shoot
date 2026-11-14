@@ -9,13 +9,18 @@ class PolicyTest {
     private val root: File = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
         .first { File(it, "app/src/main/AndroidManifest.xml").exists() }
     // XML comments are documentation, not declarations.
-    private val manifest = File(root, "app/src/main/AndroidManifest.xml").readText().replace(Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL), "")
+    private val rawManifest = File(root, "app/src/main/AndroidManifest.xml").readText().replace(Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL), "")
+    // Network permissions may appear ONLY as removal markers (they strip what a library's manifest would add); everything else counts as a declaration.
+    private val manifest = rawManifest.replace(Regex("<uses-permission[^>]*tools:node=\"remove\"[^>]*/>"), "")
     private fun sources(dir: String) = File(root, dir).walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "java") }.toList()
     private val appSources get() = sources("app/src/main")
 
     @Test fun noInternetOrNetworkStatePermission() {
         assertFalse(manifest.contains("android.permission.INTERNET"))
         assertFalse(manifest.contains("ACCESS_NETWORK_STATE"))
+        // The text-reading library would add them to the merged manifest: they must be explicitly removed.
+        assertTrue(rawManifest.contains("android.permission.INTERNET\" tools:node=\"remove\""))
+        assertTrue(rawManifest.contains("android.permission.ACCESS_NETWORK_STATE\" tools:node=\"remove\""))
     }
 
     @Test fun noBroadStorageOrOverlayOrContactPermissions() {

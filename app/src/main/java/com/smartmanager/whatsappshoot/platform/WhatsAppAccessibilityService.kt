@@ -513,7 +513,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             val cd = "caption box: named=${sc.captionNamed?.viewIdResourceName?.substringAfter(":id/")} other=${sc.captionAny?.viewIdResourceName?.substringAfter(":id/")} preview=$previewScreen bar=$selectionBar using=${captionNode != null}"
             if (cd != lastCaptionLog) { lastCaptionLog = cd; ActivityLog.add(cd) }
         }
-        val captionMatches = captionNode != null && !(Build.VERSION.SDK_INT >= 26 && captionNode.isShowingHintText) && captionNode.text?.toString()?.trim() == wantedCaption
+        val captionMatches = captionNode != null && !(Build.VERSION.SDK_INT >= 26 && captionNode.isShowingHintText) && captionNode.text?.toString()?.filterNot { it.isWhitespace() } == wantedCaption.filterNot { it.isWhitespace() }
 
         val view = com.smartmanager.whatsappshoot.logic.AttachScreenView(
             chatVisible = chatVisible, attachButton = attach != null, galleryEntry = gallery != null,

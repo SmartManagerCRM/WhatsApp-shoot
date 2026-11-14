@@ -74,3 +74,9 @@ Possible failure found by reading the 1.4.0 code: the text reader runs on its ow
 the controller would never get an answer and the send would be abandoned after the 12 s lookup watchdog ("nothing sent"). Now: every failure of the reader counts as "no match", the controller
 stops waiting for the catalogue after 8 s and carries on with the newest photo, a late answer is ignored, the reader gives up after 6 s, and the start-up clean-up of old gallery copies runs on its own thread.
 Diagnostics lines to look for: `catalogue: …`.
+
+### v1.4.2: "could not put the product picture in the gallery as the newest photo"
+A real-phone report (Infinix X6856, Android 16, v1.4.1) showed the text reader and the product match working (`catalogue: read N characters, 1 products, matched=true`) and then the gallery copy being refused by the
+"newest by every date" check, so nothing was sent. Most likely cause: after the copy is finished the phone's media scanner rewrites its dates and leaves DATE_TAKEN empty (the copy had no EXIF capture time), so by DATE_TAKEN the copy was not first.
+Now the copy carries an EXIF capture time (= now, with time zone offset), DATE_TAKEN is put back and re-read if the scanner lost it, and a failed check logs which date failed and the values involved:
+`catalogue: gallery copy failed: DATE_x: … (own=…, first=…, second=…)`. If it still fails, that line says why.

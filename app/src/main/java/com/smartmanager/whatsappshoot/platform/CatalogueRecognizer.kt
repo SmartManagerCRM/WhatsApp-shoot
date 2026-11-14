@@ -41,7 +41,7 @@ class CatalogueRecognizer(
         if (product == null) return ProductResolution.NoMatch
         val picture = store.imageFile(product)
         if (!picture.exists()) return ProductResolution.Failed("product picture missing")
-        val published = publisher.publish(product, picture) ?: return ProductResolution.Failed("could not put the product picture in the gallery as the newest photo")
+        val published = publisher.publish(product, picture) ?: return ProductResolution.Failed("could not put the product picture in the gallery as the newest photo (${publisher.lastFailure})")
         return ProductResolution.Matched(product, published, CaptionBuilder.build(product, settings.captionText, settings.captionIncludeDescription))
     }
 

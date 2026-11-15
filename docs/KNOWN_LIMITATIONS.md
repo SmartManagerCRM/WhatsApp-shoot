@@ -107,3 +107,13 @@ Still not possible: reading labels written in Arabic script (the text reader is 
 Any note on the photo is added to the message after the order number, date and branch ("Notes: ..."; "Remarques: ..." in French). Found by its label (Notes, Note, Remark, Remarque, Observation, Comment, Commentaire, Instructions, Memo) followed by ":" or "-", or a line that starts with the label;
 a label alone on its line takes the next lines (up to 3) until a blank line or another "label: value" line. Cut at 200 characters. Words that merely contain a label ("Notebook", "Commentary") are ignored.
 Handwritten notes and notes in Arabic script cannot be read by the Latin text reader. A note that is not introduced by one of these labels is not recognised. Not verified on a real phone.
+
+## v1.8.0: Arabic text on the photo
+A second on-device reader (Tesseract with the Arabic language data, both bundled in the app: no download, no network) reads Arabic script. Its text is added to the Latin reader's text before the details are searched, so
+**notes written in Arabic are added to the message**, and the order number, date and branch are also found by their Arabic labels (رقم الطلب, التاريخ, الفرع, اسم المتجر, ملاحظات, ملاحظة, تعليق, تعليمات ...), with Arabic-Indic digits and Arabic month names.
+- Cost: about +12 MB in the APK (library, four processor types) and +2.5 MB of language data; a few extra seconds per send (both readers run at the same time; the Arabic one is stopped after 14 s and then only the Latin text is used).
+  The "Read Arabic text too" switch on the Catalogue tab turns it off.
+- Accuracy: Tesseract is less accurate than the Latin reader, especially on photographs, small, stylised or handwritten Arabic. A misread letter is sent as read: check important notes. Unreliable text is not filtered.
+- The note must be introduced by a label (see above). A note written next to its label on the same line, or on the lines below a label standing alone, is found; free text without a label is not.
+- Third-party components (both Apache License 2.0): Tesseract OCR and the `ara` language data (tessdata_best, integer model); Tesseract4Android (adaptech-cz). The library is fetched from JitPack at build time only.
+- Not verified on a real phone before v1.8.0: use *Try it* to see what is read.

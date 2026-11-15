@@ -350,4 +350,6 @@
     <string name="c_test_nodetails">لم يُعثر على رقم طلب أو تاريخ أو فرع أو ملاحظات.</string>
     <string name="c_test_copy">نسخ النص المقروء</string>
     <string name="d_label_notes">ملاحظات</string>
+    <string name="c_ar_switch">قراءة النص العربي أيضًا</string>
+    <string name="c_ar_switch_help">يقرأ أيضًا العربية على الصورة (الملاحظات والتسميات) بقارئ ثانٍ على الهاتف. أبطأ: بضع ثوانٍ إضافية قبل الإرسال. أوقفه إذا لم تحتج العربية أبدًا.</string>
 </resources>

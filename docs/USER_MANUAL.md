@@ -69,3 +69,8 @@ Switch "Add details read on the photo" off on the Catalogue tab to send only the
 
 How a name is matched: case, accents and punctuation do not matter; all words of the product name must be found (a name of 4+ words may miss one); a word of 5+ letters tolerates one misread letter.
 Two products with an equal match are treated as "no match" (nothing is guessed). The text reader handles Latin letters and digits; it does **not** read Arabic script (labels or names written in Arabic are not found).
+
+## Arabic notes and labels (v1.8.0)
+The app also reads **Arabic** on the photo. A note written after *ملاحظات / ملاحظة / تعليق / تعليمات* is added to the message ("ملاحظات: ..." when the app is in Arabic), and the order number, date and branch are also found
+after their Arabic labels (*رقم الطلب, التاريخ, الفرع, اسم المتجر*). Reading Arabic takes a few more seconds before sending; switch **Read Arabic text too** off on the Catalogue tab if you do not need it.
+Arabic reading is less exact than Latin reading: a misread letter is sent as read. Use **Try it** to check a photo first.

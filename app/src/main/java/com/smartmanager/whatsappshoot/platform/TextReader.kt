@@ -12,6 +12,9 @@ import java.util.concurrent.TimeUnit
 interface TextReader {
     /** Blocking; call off the main thread. Throws if the reader fails. */
     fun read(bitmap: Bitmap): String
+
+    /** Asks a running [read] (on another thread) to stop as soon as it can. */
+    fun cancel() {}
 }
 
 class MlKitTextReader(@Suppress("unused") private val context: Context) : TextReader {

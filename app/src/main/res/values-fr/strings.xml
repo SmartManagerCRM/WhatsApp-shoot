@@ -350,4 +350,6 @@
     <string name="c_test_nodetails">Aucun numéro de commande, date, agence ou remarque trouvé.</string>
     <string name="c_test_copy">Copier le texte lu</string>
     <string name="d_label_notes">Remarques</string>
+    <string name="c_ar_switch">Lire aussi le texte arabe</string>
+    <string name="c_ar_switch_help">Lit aussi l\'arabe sur la photo (remarques, libellés) avec un second lecteur sur le téléphone. Plus lent : quelques secondes de plus avant l\'envoi. Désactivez si vous n\'avez jamais besoin de l\'arabe.</string>
 </resources>

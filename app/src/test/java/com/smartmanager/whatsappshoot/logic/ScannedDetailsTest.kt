@@ -147,4 +147,36 @@ class ScannedDetailsTest {
         )
         assertEquals("Remarques: livrer", CaptionBuilder.build(null, "", true, ScannedDetails(notes = "livrer"), DetailLabels(notes = "Remarques")))
     }
+
+    @Test fun arabicNotes() {
+        assertEquals("يرجى الاتصال قبل التوصيل", d("ملاحظات: يرجى الاتصال قبل التوصيل").notes)
+        assertEquals("التسليم بعد الظهر", d("رقم الطلب 5521\nملاحظة : التسليم بعد الظهر\nالمجموع 40").notes)
+        assertEquals("هش", d("تعليق - هش").notes)
+    }
+
+    @Test fun arabicNotesWithTheLabelAtTheEndOfTheLine() {
+        assertEquals("يرجى الاتصال قبل التوصيل", d("يرجى الاتصال قبل التوصيل :ملاحظات").notes)
+    }
+
+    @Test fun arabicNotesOnTheFollowingLines() {
+        assertEquals("الاتصال قبل التوصيل رمز البوابة 4412", d("ملاحظات:\nالاتصال قبل التوصيل\nرمز البوابة 4412\n\nشكرا").notes)
+    }
+
+    @Test fun arabicOrderDateAndBranch() {
+        val x = d("رقم الطلب: \u0661\u0660\u0664\u0665\u0668\nالتاريخ: \u0661\u0662/\u0661\u0661/\u0662\u0660\u0662\u0666\nالفرع: صفاقس المركز")
+        assertEquals("10458", x.orderNumber); assertEquals("12/11/2026", x.date); assertEquals("صفاقس المركز", x.branch)
+    }
+
+    @Test fun arabicMonthNameDate() {
+        assertEquals("12 نوفمبر 2026", d("التاريخ 12 نوفمبر 2026").date)
+    }
+
+    @Test fun arabicSellerLabel() {
+        assertEquals("ميغا فون", d("اسم المتجر: ميغا فون").branch)
+    }
+
+    @Test fun aKeywordInsideALongerWordIsNotALabel() {
+        assertNull(d("Storefront window").branch)
+        assertNull(d("فرعون كان ملكا").branch)
+    }
 }

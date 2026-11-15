@@ -52,6 +52,8 @@ data class AutomationSettings(
     val captionIncludeDescription: Boolean = true,
     /** Catalogue / details: add the order number, date and branch read on the photo to the message. */
     val captionIncludeDetails: Boolean = true,
+    /** Also read Arabic text on the photo (notes, labels): a second, slower on-device reader. */
+    val arabicReading: Boolean = true,
 ) {
     /** Short settle time before an AUTOMATIC capture so the conversation has finished rendering. */
     val effectiveDelayMs: Long

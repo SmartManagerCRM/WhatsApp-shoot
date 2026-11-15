@@ -648,8 +648,8 @@ class AutomationController(
         const val DIRECT_SELECT_TIMEOUT_MS = 15_000L
         const val SEND_FLOW_TIMEOUT_MS = 25_000L
         const val ATTACH_FLOW_TIMEOUT_MS = 40_000L
-        const val CAPTURE_TIMEOUT_MS = 12_000L
-        const val PRODUCT_TIMEOUT_MS = 8_000L
+        const val CAPTURE_TIMEOUT_MS = 26_000L
+        const val PRODUCT_TIMEOUT_MS = 18_000L
     }
 }
 

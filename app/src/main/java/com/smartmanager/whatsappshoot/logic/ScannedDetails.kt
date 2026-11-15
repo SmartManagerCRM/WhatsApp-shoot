@@ -20,21 +20,22 @@ object DetailExtractor {
             "invoice\\s*(?:no\\.?|number|num\\.?|id)?|facture\\s*(?:n[°º]\\.?|num(?:éro)?)?|receipt\\s*(?:no\\.?|number)?|ticket\\s*(?:no\\.?|number)?|" +
             "reçu\\s*(?:n[°º]\\.?)?|bl\\s*(?:n[°º]\\.?)?|transaction\\s*(?:no\\.?|id|ref)?|voucher\\s*(?:no\\.?)?)"
     private val ORDER = Regex("(?i)\\b$ORDER_KEYWORD[\\s:#.\\-–]*([A-Za-z0-9][A-Za-z0-9\\-/]{2,24})")
+    private val ORDER_AR = Regex("(?:رقم\\s+(?:ال)?طلب(?:ية)?|طلب\\s+رقم|رقم\\s+الفاتورة|فاتورة\\s+رقم|رقم\\s+العملية|رقم\\s+المرجع|رقم\\s+الايصال|رقم\\s+الإيصال)[\\s:：#.\\-–]*([A-Za-z0-9][A-Za-z0-9\\-/]{2,24})")
     // Tier 2: a generic reference label.
     private val REFERENCE = Regex("(?i)(?:\\bref(?:erence)?\\.?|\\bréf(?:érence)?\\.?|\\bn[°º]|\\bno\\.|\\bnum(?:éro|ber)?\\b|#)[\\s:#.\\-–]*([A-Za-z0-9][A-Za-z0-9\\-/]{2,24})")
     // Tier 3: a code that looks like an order number by itself.
     private val ORDER_CODE = Regex("\\b(?:CMD|ORD|INV|FAC|PO|SO|BC|BL)[-_/ ]?\\d{3,}[A-Z0-9\\-/]*", RegexOption.IGNORE_CASE)
 
-    private const val MONTHS = "jan(?:uary|vier)?|feb(?:ruary)?|fév(?:rier)?|fev(?:rier)?|mar(?:ch|s)?|apr(?:il)?|avr(?:il)?|may|mai|jun(?:e)?|juin|jul(?:y)?|juil(?:let)?|aug(?:ust)?|août|aout|sep(?:t(?:ember|embre)?)?|oct(?:ober|obre)?|nov(?:ember|embre)?|dec(?:ember)?|déc(?:embre)?"
+    private const val MONTHS = "jan(?:uary|vier)?|feb(?:ruary)?|fév(?:rier)?|fev(?:rier)?|mar(?:ch|s)?|apr(?:il)?|avr(?:il)?|may|mai|jun(?:e)?|juin|jul(?:y)?|juil(?:let)?|aug(?:ust)?|août|aout|sep(?:t(?:ember|embre)?)?|oct(?:ober|obre)?|nov(?:ember|embre)?|dec(?:ember)?|déc(?:embre)?|يناير|فبراير|مارس|أبريل|ابريل|مايو|يونيو|يوليو|أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر"
     private val DATE_NUMERIC = Regex("\\b(\\d{1,2})[/\\-.](\\d{1,2})[/\\-.](\\d{4}|\\d{2})\\b")
     private val DATE_ISO = Regex("\\b(\\d{4})[/\\-.](\\d{1,2})[/\\-.](\\d{1,2})\\b")
     private val DATE_DAY_MONTH = Regex("(?i)\\b(\\d{1,2})(?:st|nd|rd|th|er)?[\\s\\-/.]+(?:$MONTHS)\\.?,?[\\s\\-/.]*(\\d{4}|\\d{2})\\b")
     private val DATE_MONTH_DAY = Regex("(?i)\\b(?:$MONTHS)\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b")
     private val DATE_NO_YEAR = Regex("(?i)\\b(\\d{1,2})(?:st|nd|rd|th|er)?[\\s\\-/.]+(?:$MONTHS)\\b")
 
-    private const val BRANCH_WORDS = "branch|store|shop|outlet|showroom|agency|agence|succursale|magasin|boutique|point\\s+of\\s+sale|point\\s+de\\s+vente|location|emplacement|site"
-    private const val SELLER_WORDS = "shop\\s+name|store\\s+name|nom\\s+du\\s+magasin|nom\\s+de\\s+la\\s+boutique|seller|vendor|merchant|vendeur|sold\\s+by|vendu\\s+par"
-    private val BRANCH = Regex("(?i)(?:^|[^\\p{L}])(?:$SELLER_WORDS|$BRANCH_WORDS)\\s*[:#\\-–]?\\s*(\\S.{1,40})")
+    private const val BRANCH_WORDS = "branch|store|shop|outlet|showroom|agency|agence|succursale|magasin|boutique|point\\s+of\\s+sale|point\\s+de\\s+vente|location|emplacement|site|الفرع|فرع|المتجر|المحل|المعرض|الوكالة|الموقع"
+    private const val SELLER_WORDS = "shop\\s+name|store\\s+name|nom\\s+du\\s+magasin|nom\\s+de\\s+la\\s+boutique|seller|vendor|merchant|vendeur|sold\\s+by|vendu\\s+par|اسم\\s+المتجر|اسم\\s+المحل|البائع|التاجر"
+    private val BRANCH = Regex("(?i)(?:^|[^\\p{L}])(?:$SELLER_WORDS|$BRANCH_WORDS)(?![\\p{L}])\\s*[:：#\\-–]?\\s*(\\S.{1,40})")
 
     /** Arabic-Indic and Persian digits become ASCII digits; odd spaces become plain spaces. */
     fun normalise(text: String): String = buildString {
@@ -58,6 +59,7 @@ object DetailExtractor {
 
     private fun order(text: String): String? {
         ORDER.findAll(text).map { clean(it.groupValues[1]) }.firstOrNull { v -> v.any { it.isDigit() } && v.length >= 3 }?.let { return it }
+        ORDER_AR.findAll(text).map { clean(it.groupValues[1]) }.firstOrNull { v -> v.any { it.isDigit() } && v.length >= 3 }?.let { return it }
         REFERENCE.findAll(text).map { clean(it.groupValues[1]) }.firstOrNull { v -> v.any { it.isDigit() } && v.length >= 3 && !looksLikeDate(v) }?.let { return it }
         return ORDER_CODE.find(text)?.value?.trim()
     }
@@ -68,7 +70,7 @@ object DetailExtractor {
 
     private fun date(text: String): String? {
         // A date on a line that says "date" wins; otherwise the first well-formed date in the text.
-        val labelled = text.lines().filter { Regex("(?i)\\bdate\\b").containsMatchIn(it) }
+        val labelled = text.lines().filter { Regex("(?i)\\bdate\\b|التاريخ|تاريخ").containsMatchIn(it) }
         return findDate(labelled.joinToString("\n")) ?: findDate(text) ?: DATE_NO_YEAR.find(labelled.joinToString("\n"))?.value
     }
 
@@ -82,10 +84,13 @@ object DetailExtractor {
     }
 
     // A notes label followed by ":" or "-" and the note, or a line that starts with the label ("Note livrer avant 17h"). "Notebook" or "commentary" are not labels.
-    private const val NOTE_WORDS = "notes?|remarks?|remarques?|observations?|comments?|commentaires?|special\\s+instructions?|instructions?|memo"
-    private val NOTE_SAME_LINE = Regex("(?i)(?:^|[^\\p{L}])(?:$NOTE_WORDS)\\s*[:\\-–]\\s*(\\S.*)")
+    private const val NOTE_WORDS_AR = "ملاحظات|ملاحظة|ملاحظه|ملحوظة|ملحوظات|تعليق|تعليقات|تعليمات|تنبيه|توضيح"
+    private const val NOTE_WORDS = "notes?|remarks?|remarques?|observations?|comments?|commentaires?|special\\s+instructions?|instructions?|memo|$NOTE_WORDS_AR"
+    private val NOTE_SAME_LINE = Regex("(?i)(?:^|[^\\p{L}])(?:$NOTE_WORDS)\\s*[:：\\-–]\\s*(\\S.*)")
     private val NOTE_LINE_START = Regex("(?i)^\\s*(?:$NOTE_WORDS)\\s+(\\S.*)")
     private val NOTE_LABEL_ONLY = Regex("(?i)(?:^|[^\\p{L}])(?:$NOTE_WORDS)\\s*[:\\-–]?\\s*$")
+    // Arabic text can come out with the label at the end of the line ("text :ملاحظات"): then the note is what stands before the label.
+    private val NOTE_ARABIC_REVERSED = Regex("^\\s*(.{2,200}?)\\s*[:：\\-–]?\\s*(?:$NOTE_WORDS_AR)\\s*[:：]?\\s*$")
     private const val NOTES_MAX = 200
 
     private fun notes(text: String): String? {
@@ -93,6 +98,7 @@ object DetailExtractor {
         for ((i, line) in lines.withIndex()) {
             val same = NOTE_SAME_LINE.find(line)?.groupValues?.get(1) ?: NOTE_LINE_START.find(line)?.groupValues?.get(1)
             if (same != null) return tidy(same)
+            NOTE_ARABIC_REVERSED.find(line)?.groupValues?.get(1)?.let { rev -> tidy(rev)?.let { return it } }
             if (NOTE_LABEL_ONLY.containsMatchIn(line)) {
                 // The note is on the following lines (up to 3), until a blank line or another "label: value" line.
                 val body = lines.drop(i + 1).takeWhile { it.isNotBlank() && !it.contains(':') }.take(3).joinToString(" ")

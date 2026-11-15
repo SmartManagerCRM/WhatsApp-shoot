@@ -41,6 +41,7 @@ class SettingsStore(context: Context) {
             .putBoolean("catalogue", next.catalogueEnabled)
             .putBoolean("capDesc2", next.captionIncludeDescription)
             .putBoolean("capDet", next.captionIncludeDetails)
+            .putBoolean("arabic", next.arabicReading)
             .putInt("settingsVersion", 2)
             .apply()
         _flow.value = next
@@ -69,6 +70,7 @@ class SettingsStore(context: Context) {
             catalogueEnabled = prefs.getBoolean("catalogue", d.catalogueEnabled),
             captionIncludeDescription = prefs.getBoolean("capDesc2", d.captionIncludeDescription),
             captionIncludeDetails = prefs.getBoolean("capDet", d.captionIncludeDetails),
+            arabicReading = prefs.getBoolean("arabic", d.arabicReading),
         )
     }
 

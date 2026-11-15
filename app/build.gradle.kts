@@ -28,8 +28,8 @@ android {
         applicationId = "com.smartmanager.whatsappshoot"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "1.7.0"
+        versionCode = 29
+        versionName = "1.8.0"
 
         buildConfigField("String", "LICENSE_PUBLIC_KEY", "\"$licensePublicKey\"")
     }
@@ -88,6 +88,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     // On-device text reader for the catalogue (Latin script). Bundled model: works offline, no download. Its network permissions are removed in the manifest.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // On-device Arabic text reader (Tesseract, language data bundled in assets/tessdata): used for notes and other details written in Arabic.
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.7.0")
     // coil/glide intentionally NOT used: the preview decodes the local file with BitmapFactory.
 
     testImplementation("junit:junit:4.13.2")

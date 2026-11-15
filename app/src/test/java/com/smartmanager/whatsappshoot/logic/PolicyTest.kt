@@ -34,6 +34,11 @@ class PolicyTest {
         assertTrue(perms.any { it.contains("READ_EXTERNAL_STORAGE") && it.contains("maxSdkVersion=\"32\"") })
     }
 
+    @Test fun arabicLanguageDataIsBundledSoNothingIsEverDownloaded() {
+        val f = File(root, "app/src/main/assets/tessdata/ara.traineddata")
+        assertTrue("Arabic language data must ship inside the app", f.isFile && f.length() > 1_000_000)
+    }
+
     @Test fun backupsDisabledSoActivationAndScreenshotsNeverLeaveTheDevice() {
         assertTrue(manifest.contains("android:allowBackup=\"false\""))
         assertTrue(File(root, "app/src/main/res/xml/data_extraction_rules.xml").readText().contains("<exclude domain=\"sharedpref\""))

@@ -350,4 +350,6 @@
     <string name="c_test_nodetails">No order number, date, branch or notes found.</string>
     <string name="c_test_copy">Copy the text read</string>
     <string name="d_label_notes">Notes</string>
+    <string name="c_ar_switch">Read Arabic text too</string>
+    <string name="c_ar_switch_help">Also reads Arabic on the photo (notes, labels) with a second on-device reader. Slower: a few seconds more before sending. Turn off if you never need Arabic.</string>
 </resources>

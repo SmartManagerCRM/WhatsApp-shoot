@@ -76,6 +76,8 @@ fun CatalogueScreen(graph: AppGraph) {
             SwitchSetting(stringResource(R.string.c_desc_switch), stringResource(R.string.c_desc_switch_help), settings.captionIncludeDescription) { b -> graph.settings.update { it.copy(captionIncludeDescription = b) } }
             RowDivider()
             SwitchSetting(stringResource(R.string.c_det_switch), stringResource(R.string.c_det_switch_help), settings.captionIncludeDetails) { b -> graph.settings.update { it.copy(captionIncludeDetails = b) } }
+            RowDivider()
+            SwitchSetting(stringResource(R.string.c_ar_switch), stringResource(R.string.c_ar_switch_help), settings.arabicReading) { b -> graph.settings.update { it.copy(arabicReading = b) } }
             if (settings.catalogueEnabled && !settings.fullyAutomaticSend) {
                 Text(stringResource(R.string.c_needs_auto), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
@@ -187,7 +189,7 @@ private fun TryItCard(graph: AppGraph) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             busy = true; result = null
-            graph.recognizer.test(uri) { text, product, details -> busy = false; result = Triple(text, product, details) }
+            graph.recognizer.test(uri, graph.settings.current.arabicReading) { text, product, details -> busy = false; result = Triple(text, product, details) }
         }
     }
     SectionCard(stringResource(R.string.c_test_title), stringResource(R.string.c_test_sub)) {

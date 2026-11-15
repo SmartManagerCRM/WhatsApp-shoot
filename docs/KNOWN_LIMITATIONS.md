@@ -131,3 +131,12 @@ and the next English text on the page ("Order Summary") was taken as the note. N
 - emoji and stray marks are dropped, lines are joined, the note is cut at 200 characters; if nothing readable is under the heading, no note is added (instead of a wrong one).
 If the heading is itself written in Arabic ("ملاحظات") the Latin reader cannot see it: the earlier text-based search is used (Arabic label followed by the note). The strip method needs a heading on its own line; small, low-contrast or handwritten Arabic may still be misread.
 Diagnostics: `catalogue: notes heading found, strip=…px arabic-note=… latin-note=… note-used=…` and `catalogue: notes strip read … ms, … characters` (counts only).
+
+### v1.8.3: Arabic note under a "Notes" heading, tested on the real order photo
+The real order photo (1080 x 2436, "Notes" heading, grey box with three lines of small Arabic print, then "Order Summary") was run through Tesseract 5 with the bundled Arabic data:
+- the **whole photo** at 1600 px gives garbage; the **strip under the heading**, enlarged about 2x, gives the note almost exactly (all three lines);
+- a strip cut too tight gives garbage, a strip cut in the middle of a line mangles that line, and a window that reaches the next row adds a garbage line made from "Order Summary" and its numbers.
+Therefore (1) the heading is found with more tolerance (an icon misread as a short token in front of "Notes" is ignored); (2) the Latin reader invents junk lines for Arabic print, so junk can no longer end the strip: only a real English-looking section heading
+(6+ Latin letters, e.g. "Order Summary") does, and a short or non-word line is ignored; (3) if the strip yields nothing, a generous window under the heading (18 % of the picture height) is read as a second try; (4) from the Arabic reader's output only the first block of mostly-Arabic lines is kept
+(short lines such as an emoji are skipped; the block stops at an English line or a line full of digits). Not verified on the phone itself: the reader there is the same Tesseract with the same data, but speed and small differences in the picture are not identical.
+Diagnostics: `catalogue: notes heading found, strip=…px window=…px arabic-note=… latin-note=… note-used=…` and `catalogue: notes strip read … ms in N pass(es), … characters`.

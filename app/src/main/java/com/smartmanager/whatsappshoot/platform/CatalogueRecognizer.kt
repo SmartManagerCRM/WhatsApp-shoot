@@ -93,12 +93,20 @@ class CatalogueRecognizer(
         }) else null
         val latin = try { reader.readDetailed(bmp) } catch (e: Throwable) { ActivityLog.add("catalogue: text reader failed (${e.javaClass.simpleName})"); null }
         val noteScan = latin?.lines?.takeIf { it.isNotEmpty() }?.let { NoteLocator.locate(it, bmp.width, bmp.height) }
-        val stripRegion = noteScan?.region
-        val noteRun = if (arabic && stripRegion != null) noteWorker.submit(java.util.concurrent.Callable<String> {
+        val firstStrip = noteScan?.region
+        val fullStrip = noteScan?.fullRegion
+        val noteRun = if (arabic && (firstStrip != null || fullStrip != null)) noteWorker.submit(java.util.concurrent.Callable<String> {
             val t0 = android.os.SystemClock.elapsedRealtime()
-            val out = noteReader.read(noteStrip(bmp, stripRegion))
-            ActivityLog.add("catalogue: notes strip read ${android.os.SystemClock.elapsedRealtime() - t0} ms, ${out.length} characters")
-            out
+            fun arabicLetters(t: String?) = t?.count { it in '\u0600'..'\u06FF' && it.isLetter() } ?: 0
+            var block: String? = null
+            var reads = 0
+            if (firstStrip != null) { block = NoteLocator.arabicBlock(noteReader.read(noteStrip(bmp, firstStrip))); reads++ }
+            // Nothing (or too little) in the strip that ends at the next section heading: try the generous window under the heading.
+            if (arabicLetters(block) < 6 && fullStrip != null && (firstStrip == null || fullStrip.bottom - firstStrip.bottom > 20)) {
+                block = NoteLocator.arabicBlock(noteReader.read(noteStrip(bmp, fullStrip))) ?: block; reads++
+            }
+            ActivityLog.add("catalogue: notes strip read ${android.os.SystemClock.elapsedRealtime() - t0} ms in $reads pass(es), ${block?.length ?: 0} characters")
+            block ?: ""
         }) else null
 
         fun <T> await(run: java.util.concurrent.Future<T>?, reader: TextReader, what: String): T? {
@@ -119,10 +127,10 @@ class CatalogueRecognizer(
 
         var note: String? = null
         if (noteScan != null) {
-            val arabicNote = noteRaw?.let { NoteLocator.cleanNote(it) }
+            val arabicNote = noteRaw?.takeIf { it.isNotBlank() }?.let { NoteLocator.cleanNote(it) }
             note = if (arabicNote != null && NoteLocator.hasArabic(arabicNote)) arabicNote else noteScan.latinBody
             ActivityLog.add(
-                "catalogue: notes heading found, strip=${noteScan.region?.let { it.bottom - it.top } ?: 0}px arabic-note=${arabicNote != null} " +
+                "catalogue: notes heading found, strip=${noteScan.region?.let { it.bottom - it.top } ?: 0}px window=${noteScan.fullRegion?.let { it.bottom - it.top } ?: 0}px arabic-note=${arabicNote != null} " +
                     "latin-note=${noteScan.latinBody != null} note-used=${note != null}",
             )
         }

@@ -122,3 +122,12 @@ A second on-device reader (Tesseract with the Arabic language data, both bundled
 The APK contains native code only for `arm64-v8a` (all current phones) and `x86_64` (the emulator that tests every build in CI). The 32-bit types (`armeabi-v7a`, `x86`) were dropped to cut the APK size
 (the two text readers ship native code per processor type). A phone whose system is 32-bit only (some old budget phones, and some phones with a 64-bit processor but a 32-bit Android) cannot install the app: Android says it is
 not compatible. Check with a customer's phone before selling if it is old. The x86_64 code is not needed on phones; dropping it too would save more but the release build could then no longer be launch-tested in CI.
+
+### v1.8.2: notes in a "Notes" box (found on a real order screenshot)
+A real order screenshot (a delivery-app order page: "Notes" heading, then a grey box with small Arabic text, then "Order Summary") produced the message line "Notes: Order Summary a": the Latin reader saw the English word "Notes", the Arabic text in the box was never read,
+and the next English text on the page ("Order Summary") was taken as the note. Now, when the Latin reader finds a heading that stands alone on its line (Notes, Note, Remarks, Remarques, Comments, Commentaires, Observations, Instructions ...):
+- text directly under the heading (line gap up to 1.2 line heights) is its note if written in Latin letters; text further below is another section and is never taken;
+- when "Read Arabic text too" is on, the strip between the heading and the next section is cropped, enlarged up to 3x (the print is small) and read by the Arabic reader on its own, at the same time as the rest; an Arabic result replaces the Latin guess;
+- emoji and stray marks are dropped, lines are joined, the note is cut at 200 characters; if nothing readable is under the heading, no note is added (instead of a wrong one).
+If the heading is itself written in Arabic ("ملاحظات") the Latin reader cannot see it: the earlier text-based search is used (Arabic label followed by the note). The strip method needs a heading on its own line; small, low-contrast or handwritten Arabic may still be misread.
+Diagnostics: `catalogue: notes heading found, strip=…px arabic-note=… latin-note=… note-used=…` and `catalogue: notes strip read … ms, … characters` (counts only).

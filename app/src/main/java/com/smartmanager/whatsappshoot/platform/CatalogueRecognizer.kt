@@ -12,6 +12,8 @@ import com.smartmanager.whatsappshoot.logic.DetailExtractor
 import com.smartmanager.whatsappshoot.logic.DetailLabels
 import com.smartmanager.whatsappshoot.logic.ScannedDetails
 import com.smartmanager.whatsappshoot.logic.LatestImage
+import com.smartmanager.whatsappshoot.logic.NoteLocator
+import com.smartmanager.whatsappshoot.logic.NoteRegion
 import com.smartmanager.whatsappshoot.logic.Product
 import com.smartmanager.whatsappshoot.logic.ProductMatcher
 import com.smartmanager.whatsappshoot.logic.ProductRecognizer
@@ -26,10 +28,13 @@ class CatalogueRecognizer(
     private val reader: TextReader,
     /** Reads Arabic script (the Latin [reader] ignores it). */
     private val arabicReader: TextReader,
+    /** A second Arabic reader instance, so the notes strip can be read while the whole picture is still being read. */
+    private val noteReader: TextReader,
 ) : ProductRecognizer {
     private val worker = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     private val arabicWorker = Executors.newSingleThreadExecutor()
+    private val noteWorker = Executors.newSingleThreadExecutor()
 
     override fun resolve(image: LatestImage, settings: AutomationSettings, callback: (ProductResolution) -> Unit) {
         worker.execute {
@@ -43,9 +48,10 @@ class CatalogueRecognizer(
         val products = store.all()
         val wantDetails = settings.captionIncludeDetails
         if (products.isEmpty() && !wantDetails) return ProductResolution.Disabled
-        val text = readText(Uri.parse(image.candidate.uri), settings.arabicReading) ?: return ProductResolution.NoMatch
+        val scan = scan(Uri.parse(image.candidate.uri), settings.arabicReading) ?: return ProductResolution.NoMatch
+        val text = scan.text
         val product = if (products.isEmpty()) null else ProductMatcher.match(text, products)
-        val details = if (wantDetails) DetailExtractor.extract(text).takeUnless { it.isEmpty } else null
+        val details = if (wantDetails) detailsOf(scan).takeUnless { it.isEmpty } else null
         // Only the make-up of the text is logged (counts), never the text itself.
         val latin = text.count { it in 'A'..'Z' || it in 'a'..'z' }
         val arabic = text.count { it in '\u0600'..'\u06FF' }
@@ -62,31 +68,74 @@ class CatalogueRecognizer(
         return ProductResolution.Matched(product, published, caption)
     }
 
+    /** Everything read on a picture: the text, and whether a notes heading was found (then [note] is the note under it, which may be null if that box is empty). */
+    private class Scan(val text: String, val noteHeadingFound: Boolean, val note: String?)
+
+    /** The details of [scan]: found in the text, except the note when a notes heading was located on the picture (the strip under it is more reliable than neighbouring text). */
+    private fun detailsOf(scan: Scan): ScannedDetails {
+        val d = DetailExtractor.extract(scan.text)
+        return if (scan.noteHeadingFound) d.copy(notes = scan.note) else d
+    }
+
     /**
-     * Text of the picture at [uri]: the Latin reader's text plus, when [arabic] is on, the Arabic reader's text (run at the same time; it is stopped if it takes too long).
-     * Null if the picture could not be read at all. Failures are logged without any text.
+     * Reads the picture at [uri]: the Latin reader (text and line positions) and, when [arabic] is on, the Arabic reader on the whole picture, plus the Arabic reader on the
+     * strip under a "Notes" heading (cropped and enlarged, because notes are small print). All Arabic work is stopped if it takes too long. Null if the picture could not
+     * be read at all. Failures are logged without any text.
      */
-    private fun readText(uri: Uri, arabic: Boolean): String? {
+    private fun scan(uri: Uri, arabic: Boolean): Scan? {
         val bmp = CatalogueStore.decode(context, uri, OCR_SIDE) ?: run { ActivityLog.add("catalogue: photo unreadable"); return null }
-        val arabicRun = if (arabic) arabicWorker.submit(java.util.concurrent.Callable<String> {
+        val started = android.os.SystemClock.elapsedRealtime()
+        val wholeRun = if (arabic) arabicWorker.submit(java.util.concurrent.Callable<String> {
             val t0 = android.os.SystemClock.elapsedRealtime()
             val out = arabicReader.read(smaller(bmp, ARABIC_SIDE))
             ActivityLog.add("catalogue: arabic reading ${android.os.SystemClock.elapsedRealtime() - t0} ms, ${out.length} characters")
             out
         }) else null
-        val latin = try { reader.read(bmp) } catch (e: Throwable) { ActivityLog.add("catalogue: text reader failed (${e.javaClass.simpleName})"); null }
-        var arabicText = ""
-        if (arabicRun != null) {
-            try {
-                arabicText = arabicRun.get(ARABIC_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+        val latin = try { reader.readDetailed(bmp) } catch (e: Throwable) { ActivityLog.add("catalogue: text reader failed (${e.javaClass.simpleName})"); null }
+        val noteScan = latin?.lines?.takeIf { it.isNotEmpty() }?.let { NoteLocator.locate(it, bmp.width, bmp.height) }
+        val stripRegion = noteScan?.region
+        val noteRun = if (arabic && stripRegion != null) noteWorker.submit(java.util.concurrent.Callable<String> {
+            val t0 = android.os.SystemClock.elapsedRealtime()
+            val out = noteReader.read(noteStrip(bmp, stripRegion))
+            ActivityLog.add("catalogue: notes strip read ${android.os.SystemClock.elapsedRealtime() - t0} ms, ${out.length} characters")
+            out
+        }) else null
+
+        fun <T> await(run: java.util.concurrent.Future<T>?, reader: TextReader, what: String): T? {
+            if (run == null) return null
+            val left = ARABIC_TIMEOUT_MS - (android.os.SystemClock.elapsedRealtime() - started)
+            return try {
+                run.get(Math.max(left, 500L), java.util.concurrent.TimeUnit.MILLISECONDS)
             } catch (e: java.util.concurrent.TimeoutException) {
-                arabicReader.cancel(); arabicRun.cancel(true); ActivityLog.add("catalogue: arabic reading stopped after ${ARABIC_TIMEOUT_MS / 1000}s")
+                reader.cancel(); run.cancel(true); ActivityLog.add("catalogue: $what stopped after ${ARABIC_TIMEOUT_MS / 1000}s"); null
             } catch (e: Throwable) {
-                ActivityLog.add("catalogue: arabic reader failed (${(e.cause ?: e).javaClass.simpleName})")
+                ActivityLog.add("catalogue: $what failed (${(e.cause ?: e).javaClass.simpleName})"); null
             }
         }
-        if (latin == null && arabicText.isBlank()) return null
-        return listOfNotNull(latin?.takeIf { it.isNotBlank() }, arabicText.takeIf { it.isNotBlank() }).joinToString("\n")
+        val noteRaw = await(noteRun, noteReader, "notes reading")
+        val wholeText = await(wholeRun, arabicReader, "arabic reading") ?: ""
+        if (latin == null && wholeText.isBlank()) return null
+        val text = listOfNotNull(latin?.text?.takeIf { it.isNotBlank() }, wholeText.takeIf { it.isNotBlank() }).joinToString("\n")
+
+        var note: String? = null
+        if (noteScan != null) {
+            val arabicNote = noteRaw?.let { NoteLocator.cleanNote(it) }
+            note = if (arabicNote != null && NoteLocator.hasArabic(arabicNote)) arabicNote else noteScan.latinBody
+            ActivityLog.add(
+                "catalogue: notes heading found, strip=${noteScan.region?.let { it.bottom - it.top } ?: 0}px arabic-note=${arabicNote != null} " +
+                    "latin-note=${noteScan.latinBody != null} note-used=${note != null}",
+            )
+        }
+        return Scan(text, noteScan != null, note)
+    }
+
+    /** The strip of [bmp] under a notes heading, enlarged so small Arabic print is big enough to be read. */
+    private fun noteStrip(bmp: android.graphics.Bitmap, r: NoteRegion): android.graphics.Bitmap {
+        val top = r.top.coerceIn(0, bmp.height - 1)
+        val h = (r.bottom - top).coerceIn(1, bmp.height - top)
+        val crop = android.graphics.Bitmap.createBitmap(bmp, 0, top, bmp.width, h)
+        val k = (NOTE_TARGET_WIDTH.toFloat() / bmp.width).coerceIn(1f, 3f)
+        return if (k < 1.05f) crop else android.graphics.Bitmap.createScaledBitmap(crop, (bmp.width * k).toInt(), (h * k).toInt().coerceAtLeast(1), true)
     }
 
     private fun smaller(b: android.graphics.Bitmap, side: Int): android.graphics.Bitmap {
@@ -103,10 +152,10 @@ class CatalogueRecognizer(
     /** For the "try it" card: what the phone reads on [uri], which product it would pick and which details it finds. */
     fun test(uri: Uri, arabic: Boolean, callback: (text: String?, product: Product?, details: ScannedDetails?) -> Unit) {
         worker.execute {
-            val text = readText(uri, arabic)
-            val product = text?.let { ProductMatcher.match(it, store.all()) }
-            val details = text?.let { DetailExtractor.extract(it) }
-            main.post { callback(text, product, details) }
+            val scan = scan(uri, arabic)
+            val product = scan?.let { ProductMatcher.match(it.text, store.all()) }
+            val details = scan?.let { detailsOf(it) }
+            main.post { callback(scan?.text, product, details) }
         }
     }
 
@@ -116,5 +165,7 @@ class CatalogueRecognizer(
         /** The Arabic reader works on a smaller copy (its time grows with the number of pixels). */
         const val ARABIC_SIDE = 1600
         const val ARABIC_TIMEOUT_MS = 14_000L
+        /** The notes strip is enlarged (up to 3x) towards this width before it is read. */
+        const val NOTE_TARGET_WIDTH = 2400
     }
 }

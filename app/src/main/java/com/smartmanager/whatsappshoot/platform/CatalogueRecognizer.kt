@@ -77,5 +77,8 @@ class CatalogueRecognizer(
         }
     }
 
-    companion object { const val OCR_SIDE = 2560 // small print on a photographed receipt is lost at lower resolutions }
+    companion object {
+        /** Small print on a photographed receipt is lost at lower resolutions. */
+        const val OCR_SIDE = 2560
+    }
 }

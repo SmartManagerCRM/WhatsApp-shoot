@@ -86,3 +86,9 @@ The catalogue picture is sent again for a recognised product (through the tempor
 a failure still sends nothing). The v1.5.0 start-up clean-up of old copies was dropped because copies are made again; each copy is deleted about 2.5 minutes after it was made.
 New: an order number, a date and a branch read on the photo are added to the message. They are found only by their English/French label in Latin letters (see the manual); Arabic text is not read, and a receipt layout with the value far from its label
 (for example in a table column) may not be understood. Not verified on a real phone before v1.6.0: use *Try it* on your own photos to see what is found.
+
+### v1.6.1: order of the steps, and reading small print
+The steps always run in this order, once per chat: (1) read the newest photo in the gallery (the ORIGINAL, before anything is copied), (2) extract the order number / date / branch and the product from that text,
+(3) only then put the catalogue picture in the gallery, (4) build the message from the product, the details read in step 2 and the user's text, (5) tap through WhatsApp and send once.
+The catalogue copy can never be read for details: it is created after step 1 and ignored when looking for "the newest photo". If the details are missing from a sent message, the photo's labels were not recognised (the diagnostics line
+`catalogue: read N characters … order=… date=… branch=…` shows which were found). v1.6.1 reads the photo at up to 2560 px (was 1600) so small print on a photographed receipt is less likely to be lost.

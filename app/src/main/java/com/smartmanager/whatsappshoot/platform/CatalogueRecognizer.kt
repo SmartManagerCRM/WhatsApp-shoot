@@ -14,10 +14,11 @@ import com.smartmanager.whatsappshoot.logic.ProductRecognizer
 import com.smartmanager.whatsappshoot.logic.ProductResolution
 import java.util.concurrent.Executors
 
-/** Reads the newest photo and finds the catalogue product it names. Everything happens on the phone. */
+/** Reads the newest photo, finds the catalogue product it names, and prepares that product's picture. Everything happens on the phone. */
 class CatalogueRecognizer(
     private val context: Context,
     private val store: CatalogueStore,
+    private val publisher: ProductPhotoPublisher,
     private val reader: TextReader,
 ) : ProductRecognizer {
     private val worker = Executors.newSingleThreadExecutor()
@@ -38,7 +39,10 @@ class CatalogueRecognizer(
         val product = ProductMatcher.match(text, products)
         ActivityLog.add("catalogue: read ${text.length} characters, ${products.size} products, matched=${product != null}")
         if (product == null) return ProductResolution.NoMatch
-        return ProductResolution.Matched(product, CaptionBuilder.build(product, settings.captionText))
+        val picture = store.imageFile(product)
+        if (!picture.exists()) return ProductResolution.Failed("product picture missing")
+        val published = publisher.publish(product, picture) ?: return ProductResolution.Failed("could not put the product picture in the gallery as the newest photo (${publisher.lastFailure})")
+        return ProductResolution.Matched(product, published, CaptionBuilder.build(product, settings.captionText, settings.captionIncludeDescription))
     }
 
     /** Recognised text of the picture at [uri], or null if the picture or the reader failed (logged without any text). */

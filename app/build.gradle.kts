@@ -28,8 +28,8 @@ android {
         applicationId = "com.smartmanager.whatsappshoot"
         minSdk = 26
         targetSdk = 35
-        versionCode = 24
-        versionName = "1.5.0"
+        versionCode = 23
+        versionName = "1.4.2"
 
         buildConfigField("String", "LICENSE_PUBLIC_KEY", "\"$licensePublicKey\"")
     }

@@ -33,7 +33,9 @@ android {
 
         // 64-bit only (arm64-v8a: every current phone; x86_64: the emulator that tests the build in CI). The two text readers ship native code per processor type:
         // dropping the 32-bit types (armeabi-v7a, x86) makes the APK much smaller. Phones that run a 32-bit-only system can no longer install the app.
-        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        // A separate 32-bit build for old 32-bit-only phones is made on request: ./gradlew :app:assembleRelease -PwssAbis=armeabi-v7a (CI does this, see .github/workflows/build-apk.yml).
+        val wssAbis = (findProperty("wssAbis") as String?)?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: listOf("arm64-v8a", "x86_64")
+        ndk { abiFilters += wssAbis }
 
         buildConfigField("String", "LICENSE_PUBLIC_KEY", "\"$licensePublicKey\"")
     }

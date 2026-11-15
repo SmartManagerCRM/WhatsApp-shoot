@@ -42,6 +42,10 @@ jobs:
         run: |
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
           export WSS_STORE_FILE="$RUNNER_TEMP/release.p12"
+          # 1) the 32-bit build for old 32-bit-only phones (same code, same signature, native code for armeabi-v7a only), kept aside;
+          # 2) the normal 64-bit build last, so app/build/outputs/apk/release holds it.
+          ./gradlew --no-daemon :app:assembleRelease -PwssAbis=armeabi-v7a
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/ScreenshotAssistant-release-32bit.apk"
           ./gradlew --no-daemon :app:assembleRelease
           rm -f "$RUNNER_TEMP/release.p12"
       - name: Verify the APK files are genuine (fails the build otherwise)
@@ -55,13 +59,17 @@ jobs:
           if [ -f app/build/outputs/apk/release/app-release.apk ]; then
             bash scripts/verify-apk.sh app/build/outputs/apk/release/app-release.apk "$BT" "$EXPECT_SIGNER" || rc=1
           fi
+          if [ -f "$RUNNER_TEMP/ScreenshotAssistant-release-32bit.apk" ]; then
+            bash scripts/verify-apk.sh "$RUNNER_TEMP/ScreenshotAssistant-release-32bit.apk" "$BT" "$EXPECT_SIGNER" || rc=1
+          fi
           exit $rc
       - name: Collect
         run: |
           mkdir -p out
           if [ "$DEV_BUILD" = true ]; then N=ScreenshotAssistant-DEV-KEY-NOT-FOR-CUSTOMERS.apk; else N=ScreenshotAssistant-debug-signed.apk; fi
           cp app/build/outputs/apk/debug/*.apk "out/$N"
-          ls app/build/outputs/apk/release/*.apk >/dev/null 2>&1 && cp app/build/outputs/apk/release/*.apk out/ScreenshotAssistant-release.apk || true
+          [ -f app/build/outputs/apk/release/app-release.apk ] && cp app/build/outputs/apk/release/app-release.apk out/ScreenshotAssistant-release.apk || true
+          [ -f "$RUNNER_TEMP/ScreenshotAssistant-release-32bit.apk" ] && cp "$RUNNER_TEMP/ScreenshotAssistant-release-32bit.apk" out/ScreenshotAssistant-release-32bit.apk || true
           cp dist/license-tool.jar out/ || true
           (cd out && sha256sum *.apk *.jar > SHA256SUMS.txt)
           ls -la out; cat out/SHA256SUMS.txt
@@ -70,6 +78,7 @@ jobs:
           {
             echo "### Build result"
             if [ "$DEV_BUILD" = true ]; then echo "- DEV build: throw-away licence key. NOT for customers."; else echo "- Licence key: committed license-public-key.txt (or LICENSE_PUBLIC_KEY variable)."; fi
+            if ls out/ScreenshotAssistant-release-32bit.apk >/dev/null 2>&1; then echo "- **Signed 32-bit release APK produced** (old 32-bit-only phones): ScreenshotAssistant-release-32bit.apk (not launch-tested in CI: the emulator is x86_64)"; fi
             if ls out/ScreenshotAssistant-release.apk >/dev/null 2>&1; then echo "- **Signed release APK produced**: ScreenshotAssistant-release.apk"; else echo "- No release APK: add the WSS_* signing secrets (see docs/RELEASE.md) and re-run."; fi
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

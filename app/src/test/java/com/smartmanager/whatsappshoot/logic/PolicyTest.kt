@@ -36,8 +36,10 @@ class PolicyTest {
 
     @Test fun onlySixtyFourBitProcessorTypesAreShipped() {
         val gradle = File(root, "app/build.gradle.kts").readText()
-        assertTrue(gradle.contains("abiFilters += listOf(\"arm64-v8a\", \"x86_64\")"))
-        assertFalse(gradle.contains("armeabi-v7a\"")) // the filter list must not name a 32-bit type
+        // The default (the build sold to customers) is 64-bit only; the 32-bit build exists only when -PwssAbis=armeabi-v7a is passed explicitly.
+        assertTrue(gradle.contains("?: listOf(\"arm64-v8a\", \"x86_64\")"))
+        assertTrue(gradle.contains("findProperty(\"wssAbis\")"))
+        assertFalse(gradle.contains("listOf(\"armeabi-v7a\""))
     }
 
     @Test fun arabicLanguageDataIsBundledSoNothingIsEverDownloaded() {

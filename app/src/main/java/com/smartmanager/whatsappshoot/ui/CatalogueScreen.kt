@@ -42,7 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -179,6 +181,7 @@ private fun ProductDialog(graph: AppGraph, product: Product?, onClose: () -> Uni
 /** Lets the user check what the phone reads on a photo and which product it would pick, without sending anything. */
 @Composable
 private fun TryItCard(graph: AppGraph) {
+    val clipboard = LocalClipboardManager.current
     var busy by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<Triple<String?, Product?, ScannedDetails?>?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -195,11 +198,12 @@ private fun TryItCard(graph: AppGraph) {
             when {
                 text == null -> Text(stringResource(R.string.c_test_failed), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
                 else -> {
-                    Text(if (text.isBlank()) stringResource(R.string.c_test_none) else stringResource(R.string.c_test_text, text.replace(Regex("\\s+"), " ").take(240)), style = MaterialTheme.typography.bodySmall)
+                    Text(if (text.isBlank()) stringResource(R.string.c_test_none) else stringResource(R.string.c_test_text, text.replace(Regex("\\s+"), " ").take(1500)), style = MaterialTheme.typography.bodySmall)
                     Text(
                         if (product != null) stringResource(R.string.c_test_match, product.name) else stringResource(R.string.c_test_nomatch),
                         style = MaterialTheme.typography.titleSmall, color = if (product != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (text.isNotBlank()) OutlinedButton(onClick = { clipboard.setText(AnnotatedString(text)) }) { Text(stringResource(R.string.c_test_copy)) }
                     val parts = listOfNotNull(
                         details?.orderNumber?.let { stringResource(R.string.d_label_order) + ": " + it },
                         details?.date?.let { stringResource(R.string.d_label_date) + ": " + it },

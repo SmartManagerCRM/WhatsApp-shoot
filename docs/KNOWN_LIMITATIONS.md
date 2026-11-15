@@ -92,3 +92,13 @@ The steps always run in this order, once per chat: (1) read the newest photo in 
 (3) only then put the catalogue picture in the gallery, (4) build the message from the product, the details read in step 2 and the user's text, (5) tap through WhatsApp and send once.
 The catalogue copy can never be read for details: it is created after step 1 and ignored when looking for "the newest photo". If the details are missing from a sent message, the photo's labels were not recognised (the diagnostics line
 `catalogue: read N characters … order=… date=… branch=…` shows which were found). v1.6.1 reads the photo at up to 2560 px (was 1600) so small print on a photographed receipt is less likely to be lost.
+
+### v1.6.2: more ways to find the details, and a way to see what the phone reads
+A real phone reported that none of the order number, date or branch was found. The cause is not known yet (the text the phone reads on that photo was not available). Changes:
+- Arabic-Indic / Persian digits are converted to ordinary digits before searching; odd space characters are normalised.
+- Order number: an order/invoice/receipt/transaction label first, then a generic reference label (Ref, N°, No., Numéro, #), then order-code shapes without a label (CMD-…, ORD…, INV…, PO…, BL…).
+- Date: also `12-Nov-26`, and `12 Nov` (no year) on a line that says "date".
+- Branch / shop: also "Shop name", "Store name", "Nom du magasin", "Seller", "Vendor", "Merchant", "Sold by", "Location", "Emplacement".
+- **Try it** now shows up to 1500 characters of what the phone read and has a **Copy the text read** button, so the exact text can be checked or sent for calibration.
+- The diagnostics contain `catalogue: text make-up latin=… arabic-script=… digits=… lines=…` (counts only, never the text): if arabic-script is large and latin small, the photo is in Arabic and the Latin reader cannot read its labels.
+Still not possible: reading labels written in Arabic script (the text reader is Latin-only).

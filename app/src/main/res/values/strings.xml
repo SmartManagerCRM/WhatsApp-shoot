@@ -348,4 +348,5 @@
     <string name="c_det_switch_help">Adds the order number, the date and the branch to the message when they are written on the photo (English or French labels, Latin letters).</string>
     <string name="c_test_details">Details: %1$s</string>
     <string name="c_test_nodetails">No order number, date or branch found.</string>
+    <string name="c_test_copy">Copy the text read</string>
 </resources>

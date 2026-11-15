@@ -348,4 +348,5 @@
     <string name="c_det_switch_help">يضيف رقم الطلب والتاريخ والفرع إلى الرسالة عندما تكون مكتوبة على الصورة (بتسميات إنجليزية أو فرنسية وبأحرف لاتينية).</string>
     <string name="c_test_details">التفاصيل: %1$s</string>
     <string name="c_test_nodetails">لم يُعثر على رقم طلب أو تاريخ أو فرع.</string>
+    <string name="c_test_copy">نسخ النص المقروء</string>
 </resources>

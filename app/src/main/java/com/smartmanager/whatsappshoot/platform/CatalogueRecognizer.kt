@@ -43,6 +43,10 @@ class CatalogueRecognizer(
         val text = readText(Uri.parse(image.candidate.uri)) ?: return ProductResolution.NoMatch
         val product = if (products.isEmpty()) null else ProductMatcher.match(text, products)
         val details = if (wantDetails) DetailExtractor.extract(text).takeUnless { it.isEmpty } else null
+        // Only the make-up of the text is logged (counts), never the text itself.
+        val latin = text.count { it in 'A'..'Z' || it in 'a'..'z' }
+        val arabic = text.count { it in '\u0600'..'\u06FF' }
+        ActivityLog.add("catalogue: text make-up latin=$latin arabic-script=$arabic digits=${text.count { it.isDigit() }} lines=${text.lines().size}")
         ActivityLog.add(
             "catalogue: read ${text.length} characters, ${products.size} products, matched=${product != null}, " +
                 "order=${details?.orderNumber != null} date=${details?.date != null} branch=${details?.branch != null}",

@@ -75,4 +75,39 @@ class ScannedDetailsTest {
     @Test fun caption_detailsOnly_withoutProduct() {
         assertEquals("Order no.: 5\n\nHi", CaptionBuilder.build(null, "Hi", true, ScannedDetails(orderNumber = "5")))
     }
+
+    @Test fun arabicIndicDigitsAreUnderstood() {
+        val x = d("Date: \u0661\u0662/\u0661\u0661/\u0662\u0660\u0662\u0666\nOrder No: \u0661\u0660\u0664\u0665\u0668")
+        assertEquals("12/11/2026", x.date); assertEquals("10458", x.orderNumber)
+    }
+
+    @Test fun orderWithoutAnOrderLabel() {
+        assertEquals("4587", d("Ref: 4587").orderNumber)
+        assertEquals("778", d("N° 778").orderNumber)
+        assertEquals("CMD-2026045", d("merci\nCMD-2026045\nbonne journée").orderNumber)
+        assertEquals("INV 2026/045", d("INV 2026/045").orderNumber)
+        assertEquals("TX9981", d("Transaction ID TX9981").orderNumber)
+    }
+
+    @Test fun orderLabelStillBeatsAGenericReference() {
+        assertEquals("55120", d("Ref: 9999\nOrder no 55120").orderNumber)
+    }
+
+    @Test fun moreDateShapes() {
+        assertEquals("12-Nov-26", d("Sale 12-Nov-26 14:03").date)
+        assertEquals("12 Nov", d("Date: 12 Nov").date)
+        assertNull(d("Total 12 Nov items").date)
+    }
+
+    @Test fun shopNameAndSellerLabels() {
+        assertEquals("Mega Phone", d("Shop name: Mega Phone").branch)
+        assertEquals("Mega Phone Sfax", d("Sold by Mega Phone Sfax").branch)
+        assertEquals("Mega Phone", d("Nom du magasin : Mega Phone").branch)
+        assertEquals("Lac 2", d("Location: Lac 2").branch)
+    }
+
+    @Test fun aWordInsideAnotherWordIsNotALabel() {
+        assertNull(d("visit our website: example.com").branch)
+        assertNull(d("restore the backup").orderNumber)
+    }
 }

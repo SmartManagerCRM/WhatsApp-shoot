@@ -348,4 +348,5 @@
     <string name="c_det_switch_help">Ajoute le numéro de commande, la date et l\'agence au message lorsqu\'ils sont écrits sur la photo (libellés anglais ou français, lettres latines).</string>
     <string name="c_test_details">Détails : %1$s</string>
     <string name="c_test_nodetails">Aucun numéro de commande, date ou agence trouvé.</string>
+    <string name="c_test_copy">Copier le texte lu</string>
 </resources>

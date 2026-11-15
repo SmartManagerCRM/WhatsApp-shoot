@@ -131,8 +131,3 @@ and the next English text on the page ("Order Summary") was taken as the note. N
 - emoji and stray marks are dropped, lines are joined, the note is cut at 200 characters; if nothing readable is under the heading, no note is added (instead of a wrong one).
 If the heading is itself written in Arabic ("ملاحظات") the Latin reader cannot see it: the earlier text-based search is used (Arabic label followed by the note). The strip method needs a heading on its own line; small, low-contrast or handwritten Arabic may still be misread.
 Diagnostics: `catalogue: notes heading found, strip=…px arabic-note=… latin-note=… note-used=…` and `catalogue: notes strip read … ms, … characters` (counts only).
-
-### 32-bit build (old phones)
-The normal APK (`ScreenshotAssistant-release.apk`) is 64-bit only (see v1.8.1). For a customer whose phone cannot install it ("not compatible", typically an old budget phone with a 32-bit-only Android), CI also builds
-`ScreenshotAssistant-release-32bit.apk`: the same code, version and signature, with native code for `armeabi-v7a` only. It installs only on 32-bit phones, and it is NOT launch-tested in CI (the test emulator is x86_64), so test it on a real 32-bit phone
-before giving it to a customer. A phone has to be updated with the same kind of build it has (do not switch between the two on one phone without uninstalling, which removes the license). To build it by hand: `./gradlew :app:assembleRelease -PwssAbis=armeabi-v7a`.

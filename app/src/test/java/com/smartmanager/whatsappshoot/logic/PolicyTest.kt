@@ -34,6 +34,12 @@ class PolicyTest {
         assertTrue(perms.any { it.contains("READ_EXTERNAL_STORAGE") && it.contains("maxSdkVersion=\"32\"") })
     }
 
+    @Test fun onlySixtyFourBitProcessorTypesAreShipped() {
+        val gradle = File(root, "app/build.gradle.kts").readText()
+        assertTrue(gradle.contains("abiFilters += listOf(\"arm64-v8a\", \"x86_64\")"))
+        assertFalse(gradle.contains("armeabi-v7a\"")) // the filter list must not name a 32-bit type
+    }
+
     @Test fun arabicLanguageDataIsBundledSoNothingIsEverDownloaded() {
         val f = File(root, "app/src/main/assets/tessdata/ara.traineddata")
         assertTrue("Arabic language data must ship inside the app", f.isFile && f.length() > 1_000_000)

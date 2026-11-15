@@ -1,6 +1,6 @@
 # Installation instructions (customer)
 
-1. On the phone open the APK file you received (`Screenshot-Assistant.apk`). If Android asks, allow "Install unknown apps" for the app you opened it from. Android 8.0 or newer is required.
+1. On the phone open the APK file you received (`Screenshot-Assistant.apk`). If Android asks, allow "Install unknown apps" for the app you opened it from. Android 8.0 or newer on a 64-bit phone is required (almost every phone made since 2017; a very old phone running a 32-bit system will report that the app is not compatible).
 2. Open **Screenshot Assistant**. Tap the **License** tab.
 3. Tap **Create activation request**, then **Share** or **Copy**, and send the code (and your order number) to the seller. You will receive a licence file.
 4. Back in **License**, tap **Import License File** (or paste the text) and **Activate License**. It says *Activated: lifetime license*. No internet is needed.

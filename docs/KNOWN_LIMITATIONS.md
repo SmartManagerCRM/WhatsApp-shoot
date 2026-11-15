@@ -117,3 +117,8 @@ A second on-device reader (Tesseract with the Arabic language data, both bundled
 - The note must be introduced by a label (see above). A note written next to its label on the same line, or on the lines below a label standing alone, is found; free text without a label is not.
 - Third-party components (both Apache License 2.0): Tesseract OCR and the `ara` language data (tessdata_best, integer model); Tesseract4Android (adaptech-cz). The library is fetched from JitPack at build time only.
 - Not verified on a real phone before v1.8.0: use *Try it* to see what is read.
+
+## v1.8.1: 64-bit phones only
+The APK contains native code only for `arm64-v8a` (all current phones) and `x86_64` (the emulator that tests every build in CI). The 32-bit types (`armeabi-v7a`, `x86`) were dropped to cut the APK size
+(the two text readers ship native code per processor type). A phone whose system is 32-bit only (some old budget phones, and some phones with a 64-bit processor but a 32-bit Android) cannot install the app: Android says it is
+not compatible. Check with a customer's phone before selling if it is old. The x86_64 code is not needed on phones; dropping it too would save more but the release build could then no longer be launch-tested in CI.

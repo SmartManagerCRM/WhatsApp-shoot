@@ -1,12 +1,12 @@
 package com.smartmanager.whatsappshoot.logic
 
-/** What was read on the photo besides the product: an order number, a date and a branch (each only if found). */
-data class ScannedDetails(val orderNumber: String? = null, val date: String? = null, val branch: String? = null) {
-    val isEmpty: Boolean get() = orderNumber == null && date == null && branch == null
+/** What was read on the photo besides the product: an order number, a date, a branch and any notes (each only if found). */
+data class ScannedDetails(val orderNumber: String? = null, val date: String? = null, val branch: String? = null, val notes: String? = null) {
+    val isEmpty: Boolean get() = orderNumber == null && date == null && branch == null && notes == null
 }
 
 /** Words put in front of each detail in the message (the app language), supplied by the platform layer. */
-data class DetailLabels(val order: String = "Order no.", val date: String = "Date", val branch: String = "Branch")
+data class DetailLabels(val order: String = "Order no.", val date: String = "Date", val branch: String = "Branch", val notes: String = "Notes")
 
 /**
  * Finds an order number, a date and a branch / shop name in text read from a photo. Recognises English and French labels written in Latin letters
@@ -51,7 +51,7 @@ object DetailExtractor {
     fun extract(text: String): ScannedDetails {
         if (text.isBlank()) return ScannedDetails()
         val t = normalise(text)
-        return ScannedDetails(order(t), date(t), branch(t))
+        return ScannedDetails(order(t), date(t), branch(t), notes(t))
     }
 
     private fun clean(v: String) = v.trim('-', '/', '.', ':', '#')
@@ -79,6 +79,33 @@ object DetailExtractor {
         DATE_DAY_MONTH.findAll(text).forEach { m -> if (m.groupValues[1].toInt() in 1..31) hits += m.range.first to m.value }
         DATE_MONTH_DAY.findAll(text).forEach { m -> if (m.groupValues[1].toInt() in 1..31) hits += m.range.first to m.value }
         return hits.minByOrNull { it.first }?.second
+    }
+
+    // A notes label followed by ":" or "-" and the note, or a line that starts with the label ("Note livrer avant 17h"). "Notebook" or "commentary" are not labels.
+    private const val NOTE_WORDS = "notes?|remarks?|remarques?|observations?|comments?|commentaires?|special\\s+instructions?|instructions?|memo"
+    private val NOTE_SAME_LINE = Regex("(?i)(?:^|[^\\p{L}])(?:$NOTE_WORDS)\\s*[:\\-–]\\s*(\\S.*)")
+    private val NOTE_LINE_START = Regex("(?i)^\\s*(?:$NOTE_WORDS)\\s+(\\S.*)")
+    private val NOTE_LABEL_ONLY = Regex("(?i)(?:^|[^\\p{L}])(?:$NOTE_WORDS)\\s*[:\\-–]?\\s*$")
+    private const val NOTES_MAX = 200
+
+    private fun notes(text: String): String? {
+        val lines = text.lines()
+        for ((i, line) in lines.withIndex()) {
+            val same = NOTE_SAME_LINE.find(line)?.groupValues?.get(1) ?: NOTE_LINE_START.find(line)?.groupValues?.get(1)
+            if (same != null) return tidy(same)
+            if (NOTE_LABEL_ONLY.containsMatchIn(line)) {
+                // The note is on the following lines (up to 3), until a blank line or another "label: value" line.
+                val body = lines.drop(i + 1).takeWhile { it.isNotBlank() && !it.contains(':') }.take(3).joinToString(" ")
+                if (body.isNotBlank()) return tidy(body)
+            }
+        }
+        return null
+    }
+
+    private fun tidy(v: String): String? {
+        val one = v.replace(Regex("\\s+"), " ").trim().trim(',', ';', ':', '-', '–').trim()
+        if (one.length < 2 || one.none { it.isLetterOrDigit() }) return null
+        return if (one.length <= NOTES_MAX) one else one.take(NOTES_MAX).trimEnd() + "…"
     }
 
     private fun branch(text: String): String? {

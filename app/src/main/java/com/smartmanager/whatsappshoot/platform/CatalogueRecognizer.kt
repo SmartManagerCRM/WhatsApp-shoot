@@ -49,7 +49,7 @@ class CatalogueRecognizer(
         ActivityLog.add("catalogue: text make-up latin=$latin arabic-script=$arabic digits=${text.count { it.isDigit() }} lines=${text.lines().size}")
         ActivityLog.add(
             "catalogue: read ${text.length} characters, ${products.size} products, matched=${product != null}, " +
-                "order=${details?.orderNumber != null} date=${details?.date != null} branch=${details?.branch != null}",
+                "order=${details?.orderNumber != null} date=${details?.date != null} branch=${details?.branch != null} notes=${details?.notes != null}",
         )
         val caption = CaptionBuilder.build(product, settings.captionText, settings.captionIncludeDescription, details, labels())
         if (product == null) return if (details != null) ProductResolution.TextOnly(caption) else ProductResolution.NoMatch
@@ -68,7 +68,7 @@ class CatalogueRecognizer(
     /** The words in front of each detail, in the language chosen in the app's settings. */
     fun labels(): DetailLabels {
         val c = LocaleHelper.wrap(context)
-        return DetailLabels(c.getString(R.string.d_label_order), c.getString(R.string.d_label_date), c.getString(R.string.d_label_branch))
+        return DetailLabels(c.getString(R.string.d_label_order), c.getString(R.string.d_label_date), c.getString(R.string.d_label_branch), c.getString(R.string.d_label_notes))
     }
 
     /** For the "try it" card: what the phone reads on [uri], which product it would pick and which details it finds. */

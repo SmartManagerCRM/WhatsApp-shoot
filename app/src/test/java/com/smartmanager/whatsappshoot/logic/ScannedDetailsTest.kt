@@ -110,4 +110,41 @@ class ScannedDetailsTest {
         assertNull(d("visit our website: example.com").branch)
         assertNull(d("restore the backup").orderNumber)
     }
+
+    @Test fun notesOnTheSameLine() {
+        assertEquals("deliver before 5pm", d("Order No: 77\nNotes: deliver before 5pm\nTotal 20").notes)
+        assertEquals("Livrer avant 17h", d("Remarque : Livrer avant 17h").notes)
+        assertEquals("fragile", d("Comment - fragile").notes)
+    }
+
+    @Test fun notesLabelThenTheNoteOnTheNextLines() {
+        assertEquals("Call before delivery gate code 4412", d("Notes:\nCall before delivery\ngate code 4412\n\nThank you").notes)
+    }
+
+    @Test fun noteAtTheStartOfALine() {
+        assertEquals("livrer le matin", d("Note livrer le matin").notes)
+    }
+
+    @Test fun notesStopAtAnotherLabelLine() {
+        assertEquals("ring twice", d("Notes:\nring twice\nDate: 12/11/2026").notes)
+    }
+
+    @Test fun wordsThatMerelyContainNoteAreNotLabels() {
+        assertNull(d("Notebook 15 inch\nCommentary track").notes)
+        assertNull(d("Keynote speaker").notes)
+    }
+
+    @Test fun veryLongNotesAreShortened() {
+        val n = d("Notes: " + "word ".repeat(80)).notes!!
+        assertTrue(n.length <= 201 && n.endsWith("…"))
+    }
+
+    @Test fun caption_notesComeAfterTheOtherDetails() {
+        val p = Product("1", "Watch Pro 2", "450 TND", "")
+        assertEquals(
+            "Watch Pro 2\n450 TND\nOrder no.: 7\nNotes: ring twice\n\nThanks",
+            CaptionBuilder.build(p, "Thanks", true, ScannedDetails(orderNumber = "7", notes = "ring twice")),
+        )
+        assertEquals("Remarques: livrer", CaptionBuilder.build(null, "", true, ScannedDetails(notes = "livrer"), DetailLabels(notes = "Remarques")))
+    }
 }

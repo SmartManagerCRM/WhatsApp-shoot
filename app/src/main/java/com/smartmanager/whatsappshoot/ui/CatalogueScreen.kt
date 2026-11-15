@@ -208,6 +208,7 @@ private fun TryItCard(graph: AppGraph) {
                         details?.orderNumber?.let { stringResource(R.string.d_label_order) + ": " + it },
                         details?.date?.let { stringResource(R.string.d_label_date) + ": " + it },
                         details?.branch?.let { stringResource(R.string.d_label_branch) + ": " + it },
+                        details?.notes?.let { stringResource(R.string.d_label_notes) + ": " + it },
                     )
                     Text(
                         if (parts.isEmpty()) stringResource(R.string.c_test_nodetails) else stringResource(R.string.c_test_details, parts.joinToString(" · ")),

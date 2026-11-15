@@ -101,6 +101,7 @@ object CaptionBuilder {
         details?.orderNumber?.let { lines += "${labels.order}: $it" }
         details?.date?.let { lines += "${labels.date}: $it" }
         details?.branch?.let { lines += "${labels.branch}: $it" }
+        details?.notes?.let { lines += "${labels.notes}: $it" }
         val head = lines.filter { it.isNotEmpty() }.joinToString("\n")
         val tail = userText.trim()
         return when {

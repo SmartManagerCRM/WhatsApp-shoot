@@ -102,3 +102,8 @@ A real phone reported that none of the order number, date or branch was found. T
 - **Try it** now shows up to 1500 characters of what the phone read and has a **Copy the text read** button, so the exact text can be checked or sent for calibration.
 - The diagnostics contain `catalogue: text make-up latin=… arabic-script=… digits=… lines=…` (counts only, never the text): if arabic-script is large and latin small, the photo is in Arabic and the Latin reader cannot read its labels.
 Still not possible: reading labels written in Arabic script (the text reader is Latin-only).
+
+### v1.7.0: notes read on the photo
+Any note on the photo is added to the message after the order number, date and branch ("Notes: ..."; "Remarques: ..." in French). Found by its label (Notes, Note, Remark, Remarque, Observation, Comment, Commentaire, Instructions, Memo) followed by ":" or "-", or a line that starts with the label;
+a label alone on its line takes the next lines (up to 3) until a blank line or another "label: value" line. Cut at 200 characters. Words that merely contain a label ("Notebook", "Commentary") are ignored.
+Handwritten notes and notes in Arabic script cannot be read by the Latin text reader. A note that is not introduced by one of these labels is not recognised. Not verified on a real phone.

@@ -80,3 +80,9 @@ A real-phone report (Infinix X6856, Android 16, v1.4.1) showed the text reader a
 "newest by every date" check, so nothing was sent. Most likely cause: after the copy is finished the phone's media scanner rewrites its dates and leaves DATE_TAKEN empty (the copy had no EXIF capture time), so by DATE_TAKEN the copy was not first.
 Now the copy carries an EXIF capture time (= now, with time zone offset), DATE_TAKEN is put back and re-read if the scanner lost it, and a failed check logs which date failed and the values involved:
 `catalogue: gallery copy failed: DATE_x: … (own=…, first=…, second=…)`. If it still fails, that line says why.
+
+## v1.6.0: back to sending the catalogue picture, plus details read on the photo
+The catalogue picture is sent again for a recognised product (through the temporary gallery copy of v1.4.x, which now carries an EXIF capture time and logs why it is refused if the phone does not list it as the newest image;
+a failure still sends nothing). The v1.5.0 start-up clean-up of old copies was dropped because copies are made again; each copy is deleted about 2.5 minutes after it was made.
+New: an order number, a date and a branch read on the photo are added to the message. They are found only by their English/French label in Latin letters (see the manual); Arabic text is not read, and a receipt layout with the value far from its label
+(for example in a table column) may not be understood. Not verified on a real phone before v1.6.0: use *Try it* on your own photos to see what is found.

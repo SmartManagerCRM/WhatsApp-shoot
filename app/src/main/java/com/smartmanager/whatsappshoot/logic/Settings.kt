@@ -49,7 +49,9 @@ data class AutomationSettings(
     /** Catalogue: read the newest photo, and when it names a catalogue product send that product's registered picture instead. */
     val catalogueEnabled: Boolean = true,
     /** Catalogue caption: also add the product description (name and price are always added). */
-    val captionIncludeDescription: Boolean = false,
+    val captionIncludeDescription: Boolean = true,
+    /** Catalogue / details: add the order number, date and branch read on the photo to the message. */
+    val captionIncludeDetails: Boolean = true,
 ) {
     /** Short settle time before an AUTOMATIC capture so the conversation has finished rendering. */
     val effectiveDelayMs: Long

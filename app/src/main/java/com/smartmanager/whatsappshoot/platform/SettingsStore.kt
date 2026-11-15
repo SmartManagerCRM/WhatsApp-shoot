@@ -39,7 +39,8 @@ class SettingsStore(context: Context) {
             .putBoolean("landingFirst", next.landingGalleryFirst)
             .putString("caption", next.captionText)
             .putBoolean("catalogue", next.catalogueEnabled)
-            .putBoolean("capDesc", next.captionIncludeDescription)
+            .putBoolean("capDesc2", next.captionIncludeDescription)
+            .putBoolean("capDet", next.captionIncludeDetails)
             .putInt("settingsVersion", 2)
             .apply()
         _flow.value = next
@@ -66,7 +67,8 @@ class SettingsStore(context: Context) {
             landingGalleryFirst = prefs.getBoolean("landingFirst", d.landingGalleryFirst),
             captionText = prefs.getString("caption", null) ?: d.captionText,
             catalogueEnabled = prefs.getBoolean("catalogue", d.catalogueEnabled),
-            captionIncludeDescription = prefs.getBoolean("capDesc", d.captionIncludeDescription),
+            captionIncludeDescription = prefs.getBoolean("capDesc2", d.captionIncludeDescription),
+            captionIncludeDetails = prefs.getBoolean("capDet", d.captionIncludeDetails),
         )
     }
 

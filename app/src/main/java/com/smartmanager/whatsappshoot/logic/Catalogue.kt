@@ -86,15 +86,21 @@ object ProductMatcher {
     }
 }
 
-/** The message sent with the product picture: name, price, optionally the description, then the user's own text. */
+/** The message sent with the picture: the product's name, price and description, the details read on the photo (order number, date, branch), then the user's own text. */
 object CaptionBuilder {
-    fun build(product: Product?, userText: String, includeDescription: Boolean): String {
+    fun build(
+        product: Product?, userText: String, includeDescription: Boolean = true,
+        details: ScannedDetails? = null, labels: DetailLabels = DetailLabels(),
+    ): String {
         val lines = ArrayList<String>()
         if (product != null) {
             lines += product.name.trim()
             if (product.price.isNotBlank()) lines += product.price.trim()
             if (includeDescription && product.description.isNotBlank()) lines += product.description.trim()
         }
+        details?.orderNumber?.let { lines += "${labels.order}: $it" }
+        details?.date?.let { lines += "${labels.date}: $it" }
+        details?.branch?.let { lines += "${labels.branch}: $it" }
         val head = lines.filter { it.isNotEmpty() }.joinToString("\n")
         val tail = userText.trim()
         return when {
@@ -115,6 +121,9 @@ sealed class ProductResolution {
 
     /** [published] is the product's registered picture, put in the gallery as the newest photo; [caption] is the message to send with it. */
     data class Matched(val product: Product, val published: LatestImage, val caption: String) : ProductResolution()
+
+    /** No product, but details were read on the photo: the newest photo is sent with [caption] (those details and the user's text). */
+    data class TextOnly(val caption: String) : ProductResolution()
 
     /** A product was recognised but its picture could not be prepared: nothing is sent. */
     data class Failed(val reason: String) : ProductResolution()

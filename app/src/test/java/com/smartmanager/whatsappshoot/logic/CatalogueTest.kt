@@ -208,4 +208,26 @@ class CatalogueTest {
         assertTrue("a late failure must not cancel the running flow", r.controller.attachFlowActive)
         assertEquals("Hello", r.controller.captionText())
     }
+
+    @Test fun detailsOnly_sendsTheNewestPhoto_withTheDetailsCaption() {
+        val rec = FakeRecognizer(ProductResolution.TextOnly("Order no.: 10458\n\nHello")); val r = rig(rec)
+        r.open("Alice", outgoing = 4)
+        assertTrue(r.controller.attachFlowActive)
+        assertEquals("Order no.: 10458\n\nHello", r.controller.captionText())
+        assertEquals("the normal newest-photo plan", TilePlan(verified = false, skip = 0), r.controller.tilePlan())
+    }
+
+    @Test fun detailsCaptionIsOnlyUsedOnce() {
+        val rec = FakeRecognizer(ProductResolution.TextOnly("Order no.: 1")); val r = rig(rec)
+        r.open("Alice", outgoing = 4)
+        r.controller.stop()
+        rec.result = ProductResolution.NoMatch
+        r.controller.start(); r.open("Bob", outgoing = 1)
+        assertEquals("Hello", r.controller.captionText())
+    }
+
+    @Test fun settingsDefaults_descriptionAndDetailsAreOn() {
+        val s = AutomationSettings()
+        assertTrue(s.captionIncludeDescription); assertTrue(s.captionIncludeDetails)
+    }
 }

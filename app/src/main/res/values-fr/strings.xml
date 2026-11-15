@@ -308,7 +308,7 @@
     <string name="c_title">Catalogue</string>
     <string name="c_subtitle">Vos produits : photo, nom, prix, description</string>
     <string name="c_recog_title">Reconnaissance des produits</string>
-    <string name="c_recog_sub">L\'application lit la photo la plus récente du téléphone. Si elle nomme l\'un de vos produits, elle envoie la photo du catalogue de ce produit avec le nom, le prix et votre texte, à la place de la photo récente.</string>
+    <string name="c_recog_sub">L\'application lit la photo la plus récente du téléphone. Si son texte nomme l\'un de vos produits, elle envoie la photo du catalogue de ce produit avec le nom, le prix et la description, puis les détails lus sur la photo et votre texte, à la place de la photo récente.</string>
     <string name="c_recog_switch">Reconnaître les produits</string>
     <string name="c_recog_switch_help">Nécessite l\'envoi entièrement automatique. Si aucun produit n\'est reconnu, la photo la plus récente est envoyée comme avant.</string>
     <string name="c_desc_switch">Ajouter la description</string>
@@ -341,4 +341,11 @@
     <string name="c_test_match">Produit : %1$s</string>
     <string name="c_test_nomatch">Aucun produit ne correspond.</string>
     <string name="status_product_failed">Un produit a été reconnu mais sa photo du catalogue n\'a pas pu être préparée. Rien n\'a été envoyé.</string>
+    <string name="d_label_order">N° de commande</string>
+    <string name="d_label_date">Date</string>
+    <string name="d_label_branch">Agence</string>
+    <string name="c_det_switch">Ajouter les détails lus sur la photo</string>
+    <string name="c_det_switch_help">Ajoute le numéro de commande, la date et l\'agence au message lorsqu\'ils sont écrits sur la photo (libellés anglais ou français, lettres latines).</string>
+    <string name="c_test_details">Détails : %1$s</string>
+    <string name="c_test_nodetails">Aucun numéro de commande, date ou agence trouvé.</string>
 </resources>

@@ -308,7 +308,7 @@
     <string name="c_title">Catalogue</string>
     <string name="c_subtitle">Your products: picture, name, price, description</string>
     <string name="c_recog_title">Product recognition</string>
-    <string name="c_recog_sub">The app reads the newest photo on the phone. If it names one of your products, it sends that product\'s catalogue picture with the name, the price and your text, instead of the newest photo.</string>
+    <string name="c_recog_sub">The app reads the newest photo on the phone. If its text names one of your products, it sends that product\'s catalogue picture with the name, price and description, then the details read on the photo and your text, instead of the newest photo.</string>
     <string name="c_recog_switch">Recognise products</string>
     <string name="c_recog_switch_help">Needs fully automatic sending. If no product is recognised, the newest photo is sent as before.</string>
     <string name="c_desc_switch">Add the description</string>
@@ -341,4 +341,11 @@
     <string name="c_test_match">Product: %1$s</string>
     <string name="c_test_nomatch">No product matches.</string>
     <string name="status_product_failed">A product was recognised but its catalogue picture could not be prepared. Nothing was sent.</string>
+    <string name="d_label_order">Order no.</string>
+    <string name="d_label_date">Date</string>
+    <string name="d_label_branch">Branch</string>
+    <string name="c_det_switch">Add details read on the photo</string>
+    <string name="c_det_switch_help">Adds the order number, the date and the branch to the message when they are written on the photo (English or French labels, Latin letters).</string>
+    <string name="c_test_details">Details: %1$s</string>
+    <string name="c_test_nodetails">No order number, date or branch found.</string>
 </resources>

@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.smartmanager.whatsappshoot.R
 import com.smartmanager.whatsappshoot.logic.Product
+import com.smartmanager.whatsappshoot.logic.ScannedDetails
 import com.smartmanager.whatsappshoot.platform.AppGraph
 import com.smartmanager.whatsappshoot.platform.CatalogueStore
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +72,8 @@ fun CatalogueScreen(graph: AppGraph) {
             SwitchSetting(stringResource(R.string.c_recog_switch), stringResource(R.string.c_recog_switch_help), settings.catalogueEnabled) { b -> graph.settings.update { it.copy(catalogueEnabled = b) } }
             RowDivider()
             SwitchSetting(stringResource(R.string.c_desc_switch), stringResource(R.string.c_desc_switch_help), settings.captionIncludeDescription) { b -> graph.settings.update { it.copy(captionIncludeDescription = b) } }
+            RowDivider()
+            SwitchSetting(stringResource(R.string.c_det_switch), stringResource(R.string.c_det_switch_help), settings.captionIncludeDetails) { b -> graph.settings.update { it.copy(captionIncludeDetails = b) } }
             if (settings.catalogueEnabled && !settings.fullyAutomaticSend) {
                 Text(stringResource(R.string.c_needs_auto), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
@@ -177,18 +180,18 @@ private fun ProductDialog(graph: AppGraph, product: Product?, onClose: () -> Uni
 @Composable
 private fun TryItCard(graph: AppGraph) {
     var busy by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<Pair<String?, Product?>?>(null) }
+    var result by remember { mutableStateOf<Triple<String?, Product?, ScannedDetails?>?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             busy = true; result = null
-            graph.recognizer.test(uri) { text, product -> busy = false; result = text to product }
+            graph.recognizer.test(uri) { text, product, details -> busy = false; result = Triple(text, product, details) }
         }
     }
     SectionCard(stringResource(R.string.c_test_title), stringResource(R.string.c_test_sub)) {
         OutlinedButton(enabled = !busy, onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
             Text(stringResource(if (busy) R.string.c_test_busy else R.string.c_test_button))
         }
-        result?.let { (text, product) ->
+        result?.let { (text, product, details) ->
             when {
                 text == null -> Text(stringResource(R.string.c_test_failed), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
                 else -> {
@@ -196,6 +199,15 @@ private fun TryItCard(graph: AppGraph) {
                     Text(
                         if (product != null) stringResource(R.string.c_test_match, product.name) else stringResource(R.string.c_test_nomatch),
                         style = MaterialTheme.typography.titleSmall, color = if (product != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    val parts = listOfNotNull(
+                        details?.orderNumber?.let { stringResource(R.string.d_label_order) + ": " + it },
+                        details?.date?.let { stringResource(R.string.d_label_date) + ": " + it },
+                        details?.branch?.let { stringResource(R.string.d_label_branch) + ": " + it },
+                    )
+                    Text(
+                        if (parts.isEmpty()) stringResource(R.string.c_test_nodetails) else stringResource(R.string.c_test_details, parts.joinToString(" · ")),
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }

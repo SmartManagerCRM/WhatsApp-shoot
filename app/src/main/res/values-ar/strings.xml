@@ -308,7 +308,7 @@
     <string name="c_title">الكتالوج</string>
     <string name="c_subtitle">منتجاتك: الصورة والاسم والسعر والوصف</string>
     <string name="c_recog_title">التعرّف على المنتجات</string>
-    <string name="c_recog_sub">يقرأ التطبيق أحدث صورة في الهاتف. إذا ذكرت أحد منتجاتك، يرسل صورة هذا المنتج من الكتالوج مع الاسم والسعر ونصّك بدل أحدث صورة.</string>
+    <string name="c_recog_sub">يقرأ التطبيق أحدث صورة في الهاتف. إذا ذكر نصها أحد منتجاتك، يرسل صورة هذا المنتج من الكتالوج مع الاسم والسعر والوصف، ثم التفاصيل المقروءة من الصورة ونصّك، بدل أحدث صورة.</string>
     <string name="c_recog_switch">التعرّف على المنتجات</string>
     <string name="c_recog_switch_help">يتطلب الإرسال التلقائي الكامل. إذا لم يُعرف أي منتج تُرسل أحدث صورة كما كان.</string>
     <string name="c_desc_switch">إضافة الوصف</string>
@@ -341,4 +341,11 @@
     <string name="c_test_match">المنتج: %1$s</string>
     <string name="c_test_nomatch">لا يوجد منتج مطابق.</string>
     <string name="status_product_failed">تم التعرف على منتج لكن تعذّر تجهيز صورته من الكتالوج. لم يتم إرسال شيء.</string>
+    <string name="d_label_order">رقم الطلب</string>
+    <string name="d_label_date">التاريخ</string>
+    <string name="d_label_branch">الفرع</string>
+    <string name="c_det_switch">إضافة التفاصيل المقروءة من الصورة</string>
+    <string name="c_det_switch_help">يضيف رقم الطلب والتاريخ والفرع إلى الرسالة عندما تكون مكتوبة على الصورة (بتسميات إنجليزية أو فرنسية وبأحرف لاتينية).</string>
+    <string name="c_test_details">التفاصيل: %1$s</string>
+    <string name="c_test_nodetails">لم يُعثر على رقم طلب أو تاريخ أو فرع.</string>
 </resources>

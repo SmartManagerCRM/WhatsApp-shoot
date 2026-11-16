@@ -10,7 +10,7 @@ import java.util.Locale
  * Never written to disk or sent anywhere; the user copies it manually.
  */
 object ActivityLog {
-    private const val MAX = 120
+    private const val MAX = 600
     private val lines = java.util.ArrayDeque<String>()
     private val format = SimpleDateFormat("HH:mm:ss.SSS", Locale.US) // one formatter, used under the lock (creating one per line is wasteful)
 

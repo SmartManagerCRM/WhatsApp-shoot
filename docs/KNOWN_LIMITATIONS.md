@@ -155,3 +155,6 @@ v1.9.0 only split a photo when it found two different order numbers of 5+ digits
 
 ### v1.9.2: splitting at "Total" lines, and a layout line in the log
 The v1.9.1 log from the phone said `read as one order (20 text lines; no repeated order number or Order Status/Summary heading)`: the real two-order photo has neither. A last-resort split was added: two or more separate "Total" lines (an order's closing line; "SubTotal" does not count; lines within 12 line heights count once) = that many orders, each starting under the previous Total. Also the log now has `catalogue: layout (top%: shape): …`, one entry per text line with only its structure (words like Order/Status/Total/Notes kept; other letters = a, Arabic = ع, digits = 9), so a photo that is still read as one order can be understood without any private text. Not verified on the phone.
+
+### v1.9.3: longer activity log
+The activity log kept only the last 120 lines; one send writes about 60, so by the time the report was copied the two-order attempt had been pushed out and only later, unrelated runs were left. It now keeps the last 600 lines.

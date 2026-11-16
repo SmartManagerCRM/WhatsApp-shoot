@@ -129,6 +129,7 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
             active = active, paused = v.paused, message = stringResource(StatusStrings.res(v.message)),
             canStart = licensed && accessibilityOn,
             startHint = when {
+                license == null -> stringResource(R.string.h_hint_license_checking)
                 !licensed -> stringResource(R.string.h_hint_license)
                 !accessibilityOn -> stringResource(R.string.h_hint_accessibility)
                 else -> null
@@ -170,7 +171,7 @@ fun HomeScreen(graph: AppGraph, openLicense: () -> Unit, openSettings: () -> Uni
             stringResource(if (allReady) R.string.h_setup_ready else R.string.h_setup_finish),
             stringResource(if (allReady) R.string.h_setup_ready_sub else R.string.h_setup_todo_sub),
         ) {
-            CheckRow(licensed, stringResource(R.string.h_license), licenseTone.first, if (!licensed || licenseTone.second) stringResource(R.string.h_open) else null, openLicense)
+            CheckRow(licensed, stringResource(R.string.h_license), licenseTone.first, if (license != null && (!licensed || licenseTone.second)) stringResource(R.string.h_open) else null, openLicense)
             RowDivider()
             CheckRow(
                 accessibilityOn, stringResource(R.string.h_acc),

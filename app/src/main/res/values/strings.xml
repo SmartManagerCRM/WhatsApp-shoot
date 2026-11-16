@@ -108,6 +108,7 @@
     <string name="h_caption_off">No text: only the photo is sent.</string>
     <string name="h_caption_on">This text is added to each photo the app sends.</string>
     <string name="h_hint_license">Activate your license to start</string>
+    <string name="h_hint_license_checking">Checking your license...</string>
     <string name="h_hint_accessibility">Turn on the accessibility service to start</string>
     <string name="h_needs_you">Needs you</string>
     <string name="h_open_sharing">Open WhatsApp sharing</string>

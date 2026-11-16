@@ -65,6 +65,10 @@ The **Catalogue** tab holds your products: a picture, a name, a price and a desc
 
 Details are found by their label, written in Latin letters (English or French): *Order No / Order # / Order ID / Commande n° / Invoice / Facture*, a date (`12/11/2026`, `2026-11-12`, `12 Nov 2026`, `12 novembre 2026`),
 *Branch / Store / Shop / Agence / Succursale / Magasin / Boutique*, and notes written after *Notes / Note / Remark / Remarque / Observation / Comment / Commentaire / Instructions / Memo* (on the same line, or on the lines below a label that stands alone; at most 200 characters). Nothing is guessed: a detail missing from the photo is simply left out. The labels in the message follow the app language.
+
+**Several orders on one photo (v1.9.0).** If the photo in your gallery shows several orders (several different order numbers), the app reads each order separately and sends one message per order that names a catalogue product: that product's picture, its price/description, that order's number, date, branch and notes, and your Home text. The messages go out one after the other as soon as the chat opens. Orders whose product is not in the catalogue are not sent.
+
+**Notes without the word "Notes" (v1.9.0).** The app also recognises the small notes icon (a document with three lines) and reads the Arabic note next to it. "Read Arabic text too" must be on.
 Switch "Add details read on the photo" off on the Catalogue tab to send only the product information.
 
 How a name is matched: case, accents and punctuation do not matter; all words of the product name must be found (a name of 4+ words may miss one); a word of 5+ letters tolerates one misread letter.

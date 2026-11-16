@@ -37,7 +37,7 @@ object NoteLocator {
     }
 
     /** A section heading such as "Order Summary" or "Payment Method": 6+ Latin letters, mostly letters, English-looking. */
-    private fun isSectionHeader(text: String): Boolean {
+    fun isSectionHeader(text: String): Boolean {
         val t = text.trim()
         val latin = t.count { it in 'A'..'Z' || it in 'a'..'z' }
         val nonSpace = t.count { !it.isWhitespace() }

@@ -108,6 +108,7 @@
     <string name="h_caption_off">لا يوجد نص: تُرسل الصورة فقط.</string>
     <string name="h_caption_on">تتم إضافة هذا النص إلى كل صورة يرسلها التطبيق.</string>
     <string name="h_hint_license">فعّل ترخيصك للبدء</string>
+    <string name="h_hint_license_checking">جارٍ التحقق من الترخيص...</string>
     <string name="h_hint_accessibility">فعّل خدمة تسهيلات الاستخدام للبدء</string>
     <string name="h_needs_you">يحتاج إلى تدخلك</string>
     <string name="h_open_sharing">فتح مشاركة واتساب</string>

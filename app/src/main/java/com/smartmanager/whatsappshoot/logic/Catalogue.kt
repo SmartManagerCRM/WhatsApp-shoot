@@ -112,6 +112,9 @@ object CaptionBuilder {
     }
 }
 
+/** One order of a multi-order photo that is still to be sent: its product and the full message (details, notes, user text). */
+data class OrderPlan(val product: Product, val caption: String)
+
 /** What the catalogue step decided for the newest photo. */
 sealed class ProductResolution {
     /** Feature off or catalogue empty: behave as before. */
@@ -126,6 +129,12 @@ sealed class ProductResolution {
     /** No product, but details were read on the photo: the newest photo is sent with [caption] (those details and the user's text). */
     data class TextOnly(val caption: String) : ProductResolution()
 
+    /**
+     * The photo holds several orders: [first] is the first order's product picture, already in the gallery as the newest photo; [rest] are the other orders, whose
+     * pictures are put in the gallery one at a time just before each is sent (so each is the newest photo when it is attached).
+     */
+    data class Multi(val first: Matched, val rest: List<OrderPlan>) : ProductResolution()
+
     /** A product was recognised but its picture could not be prepared: nothing is sent. */
     data class Failed(val reason: String) : ProductResolution()
 }
@@ -133,6 +142,12 @@ sealed class ProductResolution {
 interface ProductRecognizer {
     /** Reads [image], matches it against the catalogue and prepares the product picture. Callback on the main thread, exactly once. */
     fun resolve(image: LatestImage, settings: AutomationSettings, callback: (ProductResolution) -> Unit)
+
+    /** Puts [product]'s picture in the gallery as the newest photo (for the next order of a multi-order photo). Null result = could not. Callback on the main thread. */
+    fun publish(product: Product, callback: (LatestImage?) -> Unit) = callback(null)
+
+    /** Reads [image] ahead of time (when WhatsApp comes to the front), so the answer is ready when a chat opens. Nothing is published or sent. */
+    fun prefetch(image: LatestImage, settings: AutomationSettings) {}
 }
 
 object NoProducts : ProductRecognizer {

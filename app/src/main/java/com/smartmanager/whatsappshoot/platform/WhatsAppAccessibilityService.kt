@@ -37,7 +37,10 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     private var lastWindowClass: String? = null
     private lateinit var overlay: FloatingControl
 
-    private val evaluate = Runnable { evaluateNow() }
+    // One evaluation is queued at a time and later events do not push it back: a screen that keeps sending events (animations, typing marks) could otherwise
+    // postpone the evaluation for as long as the events last, which looked like "nothing happens until I scroll".
+    private var evalQueued = false
+    private val evaluate = Runnable { evalQueued = false; evaluateNow() }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -64,8 +67,10 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         // Coalesce bursts of events into one evaluation (also the first line of duplicate prevention).
         pendingPackage = pkg
         if (pkg in profile.packages) { watchTicks = 0; armWatchdog() }
-        main.removeCallbacks(evaluate)
-        main.postDelayed(evaluate, if (graph.controller.shareFlowActive) FLOW_EVENT_DEBOUNCE_MS else EVENT_DEBOUNCE_MS)
+        if (!evalQueued) {
+            evalQueued = true
+            main.postDelayed(evaluate, if (graph.controller.shareFlowActive) FLOW_EVENT_DEBOUNCE_MS else EVENT_DEBOUNCE_MS)
+        }
     }
 
     @Volatile private var pendingPackage: String? = null
@@ -81,7 +86,6 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         val pkg = pendingPackage
         if (pkg == null || pkg !in profile.packages || v.paused) return@Runnable
         if (v.state != com.smartmanager.whatsappshoot.logic.AutomationState.WHATSAPP_DETECTED && v.state != com.smartmanager.whatsappshoot.logic.AutomationState.CONVERSATION_DETECTED) return@Runnable
-        if (watchTicks >= WATCH_MAX_TICKS) return@Runnable
         watchTicks++
         if (rootInActiveWindow?.packageName?.toString() == pkg) evaluateNow()
         armWatchdog()
@@ -90,7 +94,8 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     private fun armWatchdog() {
         if (watching) return
         watching = true
-        main.postDelayed(watchdog, if (watchTicks < WATCH_FAST_TICKS) WATCH_FAST_MS else WATCH_SLOW_MS)
+        // Never gives up while WhatsApp stays in front and the session is waiting: a slow beat (cheap) after the fast one, instead of stopping after ~18 s.
+        main.postDelayed(watchdog, if (watchTicks < WATCH_FAST_TICKS) WATCH_FAST_MS else if (watchTicks < WATCH_MAX_TICKS) WATCH_SLOW_MS else WATCH_IDLE_MS)
     }
 
     // While a share flow is running, look at WhatsApp every few hundred ms instead of waiting for the next accessibility event:
@@ -127,7 +132,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         if (pkg in profile.packages && snapshot.viewIds.isEmpty() && !snapshot.hasEditableInput && emptyRetries < MAX_EMPTY_RETRIES) {
             // WhatsApp's window exists but its views are not built yet: look again shortly instead of reacting to an empty screen.
             emptyRetries++
-            main.postDelayed(evaluate, EMPTY_RETRY_MS)
+            if (!evalQueued) { evalQueued = true; main.postDelayed(evaluate, EMPTY_RETRY_MS) }
             return
         }
         emptyRetries = 0
@@ -609,6 +614,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val WATCH_SLOW_MS = 1_000L
         private const val WATCH_FAST_TICKS = 10
         private const val WATCH_MAX_TICKS = 24
+        private const val WATCH_IDLE_MS = 2_500L
         private const val SHARE_TICK_MS = 120L
         private val ATTACH_IDS = setOf("input_attach_button", "attach_button", "attach")
         private val GALLERY_IDS = setOf("pickfiletype_gallery_holder")

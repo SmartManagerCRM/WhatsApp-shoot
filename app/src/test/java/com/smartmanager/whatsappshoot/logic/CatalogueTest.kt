@@ -111,6 +111,12 @@ class CatalogueTest {
 
     private class FakeRecognizer(var result: ProductResolution) : ProductRecognizer {
         var calls = 0
+        val published = ArrayList<String>()
+        var failPublish = false
+        override fun publish(product: Product, callback: (LatestImage?) -> Unit) {
+            published += product.id
+            callback(if (failPublish) null else LatestImage(cand(98, FakeClock(), ageMs = 0, folder = "Pictures/WSS Products/"), "product-" + product.id, skippedNewer = false))
+        }
         override fun resolve(image: LatestImage, settings: AutomationSettings, callback: (ProductResolution) -> Unit) { calls++; callback(result) }
     }
 
@@ -144,6 +150,37 @@ class CatalogueTest {
         assertEquals(AttachAction.ClickThumbnail, r.controller.attachStep(grid)); tick()
         assertEquals("the catalogue caption is typed before Send", AttachAction.SetCaption,
             r.controller.attachStep(AttachScreenView(chatVisible = false, sendButton = true, captionField = true)))
+    }
+
+    @Test fun severalOrders_areSentOneAfterTheOther_eachWithItsOwnMessage() {
+        val rec = FakeRecognizer(ProductResolution.NoMatch); val r = rig(rec)
+        val second = Product("b2", "Red bag", "99 TND", "")
+        val third = Product("c3", "Green hat", "10 TND", "")
+        rec.result = ProductResolution.Multi(matched(r), listOf(OrderPlan(second, "Order no.: 2\n\nRed bag"), OrderPlan(third, "Order no.: 3\n\nGreen hat")))
+        r.open("Alice", outgoing = 4)
+        assertTrue(r.controller.attachFlowActive)
+        assertEquals("Watch Pro 2\n450 TND\n\nHello", r.controller.captionText())
+        r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED)
+        assertEquals(listOf("b2"), rec.published)
+        assertTrue("the second order starts at once in the same chat", r.controller.attachFlowActive)
+        assertEquals("Order no.: 2\n\nRed bag", r.controller.captionText())
+        assertEquals(TilePlan(verified = true, skip = 0), r.controller.tilePlan())
+        r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED)
+        assertEquals(listOf("b2", "c3"), rec.published)
+        assertEquals("Order no.: 3\n\nGreen hat", r.controller.captionText())
+        r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED)
+        assertFalse("all orders sent: the flow is over", r.controller.attachFlowActive)
+        assertEquals(listOf("b2", "c3"), rec.published)
+    }
+
+    @Test fun severalOrders_stopIfANextPictureCannotBePrepared() {
+        val rec = FakeRecognizer(ProductResolution.NoMatch); val r = rig(rec)
+        rec.result = ProductResolution.Multi(matched(r), listOf(OrderPlan(Product("b2", "Red bag", "", ""), "x"), OrderPlan(Product("c3", "Hat", "", ""), "y")))
+        rec.failPublish = true
+        r.open("Alice", outgoing = 4)
+        r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED)
+        assertFalse(r.controller.attachFlowActive)
+        assertEquals("the third is not tried after the second failed", listOf("b2"), rec.published)
     }
 
     @Test fun noMatch_sendsTheNewestPhotoWithJustYourText() {

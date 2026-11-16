@@ -85,18 +85,35 @@ class KeystoreInstallKeys(private val alias: String = ALIAS) : InstallKeyProvide
     }
 }
 
-/** Two redundant slots in private SharedPreferences; writes are synchronous so a crash cannot half-write. */
+/**
+ * Two redundant slots in private SharedPreferences, each also kept as a private file: if the preferences file is ever lost or emptied (an interrupted write, a
+ * cleaned cache, a restore) the license is read back from the files, so the customer never has to enter the code again. Writes are synchronous so a crash cannot half-write.
+ */
 class PrefsActivationStore(context: Context) : ActivationStore {
     private val prefs = context.getSharedPreferences("activation", Context.MODE_PRIVATE)
+    private val dir = java.io.File(context.filesDir, "activation").apply { mkdirs() }
+    private fun file(slot: Int) = java.io.File(dir, "slot$slot")
 
-    override fun read(slot: Int): String? = prefs.getString("slot$slot", null)
+    override fun read(slot: Int): String? {
+        prefs.getString("slot$slot", null)?.let { return it }
+        val backup = try { file(slot).takeIf { it.exists() }?.readText(Charsets.UTF_8)?.takeIf { it.isNotEmpty() } } catch (e: Exception) { null } ?: return null
+        com.smartmanager.whatsappshoot.logic.ActivityLog.add("license: record restored from its backup file (slot $slot)")
+        prefs.edit().putString("slot$slot", backup).apply()
+        return backup
+    }
 
     override fun write(slot: Int, value: String) {
         if (!prefs.edit().putString("slot$slot", value).commit()) throw java.io.IOException("activation write failed")
+        try {
+            val tmp = java.io.File(dir, "slot$slot.tmp")
+            tmp.writeText(value, Charsets.UTF_8)
+            if (!tmp.renameTo(file(slot))) { file(slot).delete(); tmp.renameTo(file(slot)) }
+        } catch (e: Exception) { /* the preferences copy is already stored; the file is only a backup */ }
     }
 
     override fun clear() {
         prefs.edit().clear().commit()
+        try { dir.listFiles()?.forEach { it.delete() } } catch (e: Exception) { }
     }
 
     override fun readControls(): String? = prefs.getString("controls", null)

@@ -49,6 +49,8 @@ class AutomationController(
     private var attachLanding = false
     private var pendingProduct: ProductResolution.Matched? = null
     private var pendingCaption: String? = null
+    /** Orders of a multi-order photo still to be sent after the one now in flight (each is sent in this same chat visit). */
+    private var pendingOrders: List<OrderPlan> = emptyList()
     private var activeCaption = ""
     private var shareTimeout: Cancellable? = null
     private var captureEpoch = 0
@@ -102,6 +104,7 @@ class AutomationController(
 
     fun stop() {
         captureEpoch++; disarmWatchdog()
+        pendingOrders = emptyList()
         shareEngine = null; attachEngine = null
         shareTimeout?.cancel(); shareTimeout = null
         cancelPending() // emergency stop: nothing further is clicked
@@ -152,6 +155,7 @@ class AutomationController(
 
     private fun onLeftWhatsApp() {
         if (shareFlowActive) return // a flow in progress may pass through system pickers; its own timeout ends it
+        prefetchedThisVisit = false
         cancelPending()
         guard.conversationLeft()
         currentIdentity = null
@@ -161,6 +165,7 @@ class AutomationController(
 
     private fun onWhatsApp(c: ScreenClassification) {
         machine.dispatch(AutomationEvent.WHATSAPP_FOREGROUND)
+        maybePrefetch()
         when (c.kind) {
             ScreenKind.CONVERSATION -> onConversation(c)
             // Never capture over these; keep state, wait until the conversation is visible again.
@@ -174,6 +179,20 @@ class AutomationController(
                 if (machine.state == AutomationState.WHATSAPP_DETECTED) set(StatusMessage.WHATSAPP_DETECTED)
             }
         }
+    }
+
+    private var prefetchedThisVisit = false
+
+    /**
+     * Fully automatic gallery mode: as soon as WhatsApp comes to the front (chat list, or a chat), the newest photo is read in the background, so when a chat opens the
+     * answer is usually already there and the photo goes out without waiting for the text reader. Once per time WhatsApp is in front.
+     */
+    private fun maybePrefetch() {
+        if (prefetchedThisVisit || machine.state == AutomationState.PREPARING_ATTACHMENT || machine.state == AutomationState.CAPTURING_SCREEN) return
+        val st = settings()
+        if (!st.catalogueEnabled || !st.fullyAutomaticSend || st.imageSource != ImageSource.WHATSAPP_GALLERY || !isLicensed()) return
+        prefetchedThisVisit = true
+        latest.find(st) { res -> if (res is SelectionResult.Found && machine.state != AutomationState.INACTIVE) products.prefetch(res.image, st) }
     }
 
     private fun leaveConversation() {
@@ -206,7 +225,7 @@ class AutomationController(
         if (pendingAutoCapture != null || guard.currentVisitHandled || captureDenied) return
         pendingAutoCapture = scheduler.schedule(st.effectiveDelayMs) {
             pendingAutoCapture = null
-            startCapture(userInitiated = false)
+            if (!startCapture(userInitiated = false)) ActivityLog.add("auto start declined: state=${machine.state} licensed=${isLicensed()} paused=${machine.paused}")
         }
     }
 
@@ -341,6 +360,7 @@ class AutomationController(
     private fun resolveProduct(image: LatestImage, epoch: Int, next: () -> Unit) {
         pendingProduct = null
         pendingCaption = null
+        pendingOrders = emptyList()
         val st = settings()
         if (!st.catalogueEnabled || !st.fullyAutomaticSend || st.imageSource != ImageSource.WHATSAPP_GALLERY) { next(); return }
         val t0 = clock.nowMs()
@@ -361,6 +381,7 @@ class AutomationController(
             when (res) {
                 ProductResolution.Disabled, ProductResolution.NoMatch -> next()
                 is ProductResolution.Matched -> { pendingProduct = res; next() }
+                is ProductResolution.Multi -> { pendingProduct = res.first; pendingOrders = res.rest; ActivityLog.add("catalogue: ${res.rest.size + 1} orders will be sent one after the other"); next() }
                 is ProductResolution.TextOnly -> { pendingCaption = res.caption; next() }
                 is ProductResolution.Failed -> { ActivityLog.add("catalogue: ${res.reason}"); skipWith(StatusMessage.PRODUCT_FAILED) }
             }
@@ -564,6 +585,7 @@ class AutomationController(
         if (machine.state != AutomationState.PREPARING_ATTACHMENT) return
         shareTimeout?.cancel(); shareTimeout = null; shareEngine = null; attachEngine = null
         ActivityLog.add("timing: flow ended $o, ${sinceVisit()} ms after the chat appeared")
+        if ((o == ShareOutcome.SENT_CONFIRMED || o == ShareOutcome.SENT_UNCONFIRMED) && pendingOrders.isNotEmpty()) { sendNextOrder(); return }
         when (o) {
             ShareOutcome.ROW_SELECTED -> { record(LedgerStatus.PREPARED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.ATTACHMENT_READY) }
             ShareOutcome.SENT_CONFIRMED -> { record(LedgerStatus.SENT_CONFIRMED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.SEND_CONFIRMED) }
@@ -582,6 +604,29 @@ class AutomationController(
         }
     }
 
+    /** One order of a multi-order photo has been sent: put the next order's product picture in the gallery and run the attach flow again in the same chat. */
+    private fun sendNextOrder() {
+        val plan = pendingOrders.first()
+        pendingOrders = pendingOrders.drop(1)
+        val epoch = captureEpoch
+        val base = baselineOutgoing
+        baselineOutgoing = currentOutgoing?.takeIf { base == null || it > base } ?: base?.plus(1)
+        ActivityLog.add("next order: ${pendingOrders.size} more after this one (timing: ${sinceVisit()} ms after the chat appeared)")
+        products.publish(plan.product) { published ->
+            if (epoch != captureEpoch || machine.state != AutomationState.PREPARING_ATTACHMENT) return@publish
+            if (published == null) {
+                pendingOrders = emptyList()
+                ActivityLog.add("catalogue: could not prepare the next order's picture, remaining orders not sent")
+                attachmentFailed(StatusMessage.PRODUCT_FAILED)
+                return@publish
+            }
+            activeTilePlan = TilePlan(verified = true, skip = 0)
+            activeCaption = plan.caption
+            attachEngine = AttachFlowEngine(baselineOutgoing, clock, attachLanding, activeCaption)
+            shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
+        }
+    }
+
     private fun record(status: LedgerStatus) {
         val chat = shotIdentity?.key ?: return
         val image = shotImage ?: return
@@ -591,6 +636,7 @@ class AutomationController(
     private val clockNow: () -> Long = { clock.nowMs() }
 
     private fun attachmentFailed(m: StatusMessage) {
+        pendingOrders = emptyList()
         machine.dispatch(AutomationEvent.ATTACHMENT_FAILED)
         set(m)
     }
@@ -600,6 +646,7 @@ class AutomationController(
     /** Finish the workflow (after sending or abandoning). Deletes the screenshot if configured. */
     fun dismiss() {
         cancelPending()
+        pendingOrders = emptyList()
         if (settings().deleteWhenWorkflowEnds) discardScreenshot() else { screenshot = null }
         shotIdentity = null
         captureIdentity = null

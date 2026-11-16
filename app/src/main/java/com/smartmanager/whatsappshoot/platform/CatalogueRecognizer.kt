@@ -233,6 +233,10 @@ class CatalogueRecognizer(
             return Scan(latin?.text ?: "", false, null, reads)
         }
 
+        if (latin != null && products.isNotEmpty()) {
+            val h = Math.max(bmp.height, 1)
+            ActivityLog.add("catalogue: layout (top%: shape): " + latin.lines.sortedBy { it.top }.joinToString(" | ") { "${it.top * 100 / h}%:${com.smartmanager.whatsappshoot.logic.LineShape.of(it.text).take(40)}" })
+        }
         if (products.isNotEmpty() && latin != null) ActivityLog.add("catalogue: read as one order (${latin.lines.size} text lines; no repeated order number or Order Status/Summary heading)")
         val needWhole = arabic && run {
             val t = latin?.text ?: ""

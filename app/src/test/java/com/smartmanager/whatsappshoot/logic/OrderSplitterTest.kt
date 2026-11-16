@@ -63,3 +63,26 @@ class OrderSplitterTest {
         assertTrue(b[1].text.contains("Mrsool")); assertTrue(b[1].text.contains("1X L6")); assertTrue(!b[0].text.contains("1X L6"))
     }
 }
+
+class OrderSplitterTotalTest {
+    private fun box(t: String, top: Int) = OcrBox(t, 10, top, 400, top + 30)
+
+    @Test fun ordersThatOnlyShareTheTotalLineAreSplitAfterEachTotal() {
+        val l = listOf(box("Mrsool", 50), box("1X A11", 200), box("SubTotal", 400), box("Total", 450), box("Mrsool", 600), box("1X L6", 760), box("SubTotal", 900), box("Total", 950))
+        val b = OrderSplitter.split(l, 1100)
+        assertEquals(2, b.size)
+        assertTrue(b[0].text.contains("1X A11")); assertTrue(!b[0].text.contains("1X L6"))
+        assertTrue(b[1].text.contains("1X L6")); assertTrue(b[1].text.contains("Mrsool"))
+    }
+
+    @Test fun subTotalAndTotalOfOneOrderAreNotTwoOrders() {
+        assertTrue(OrderSplitter.split(listOf(box("1X A11", 200), box("SubTotal", 400), box("Total", 450)), 1100).isEmpty())
+    }
+
+    @Test fun shapeKeepsStructureAndHidesContent() {
+        assertEquals("Order Status", LineShape.of("Order Status"))
+        assertEquals("a+ 9+", LineShape.of("Ahmed 12345"))
+        assertEquals("Total 9+.9+", LineShape.of("Total 195.00"))
+        assertEquals("ع+ ع+ ع+", LineShape.of("اكتب في الكرت"))
+    }
+}

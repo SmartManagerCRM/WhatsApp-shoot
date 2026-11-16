@@ -44,7 +44,22 @@ object OrderSplitter {
             for (m in marks) if (spread.isEmpty() || m.top - spread.last().bottom > Math.max(m.height, 1) * 12) spread += m
             if (spread.size >= 2) return bands(sorted, spread.take(MAX_ORDERS).mapIndexed { i, l -> l to "#${i + 1}" }, imageHeight, margin, totalRule = true)
         }
+        // Last resort: each order ends with its own "Total" line.
+        val totals = ArrayList<OcrBox>()
+        for (m in sorted.filter { TOTAL.matches(it.text.trim()) }) if (totals.isEmpty() || m.top - totals.last().bottom > Math.max(m.height, 1) * 12) totals += m
+        if (totals.size >= 2) return afterEach(sorted, totals.take(MAX_ORDERS), imageHeight)
         return emptyList()
+    }
+
+    /** Orders that each END at one of [ends]: an order starts just under the previous end line. */
+    private fun afterEach(sorted: List<OcrBox>, ends: List<OcrBox>, imageHeight: Int): List<OrderBand> {
+        val starts = ends.mapIndexed { i, _ -> if (i == 0) 0 else ends[i - 1].bottom + Math.max(ends[i - 1].height, 1) }
+        return ends.mapIndexed { i, _ ->
+            val top = starts[i]
+            val bottom = if (i + 1 < ends.size) starts[i + 1] else imageHeight
+            val inside = sorted.filter { val mid = (it.top + it.bottom) / 2; mid >= top && mid < bottom }
+            OrderBand(top, bottom, inside.map { it.copy(top = it.top - top, bottom = it.bottom - top) }, "#${i + 1}")
+        }
     }
 
     private fun bands(sorted: List<OcrBox>, used: List<Pair<OcrBox, String>>, imageHeight: Int, marginLines: Double, totalRule: Boolean): List<OrderBand> {

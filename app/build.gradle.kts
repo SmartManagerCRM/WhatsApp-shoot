@@ -28,8 +28,8 @@ android {
         applicationId = "com.smartmanager.whatsappshoot"
         minSdk = 26
         targetSdk = 35
-        versionCode = 36
-        versionName = "1.9.3"
+        versionCode = 37
+        versionName = "1.9.4"
 
         // 64-bit only (arm64-v8a: every current phone; x86_64: the emulator that tests the build in CI). The two text readers ship native code per processor type:
         // dropping the 32-bit types (armeabi-v7a, x86) makes the APK much smaller. Phones that run a 32-bit-only system can no longer install the app.

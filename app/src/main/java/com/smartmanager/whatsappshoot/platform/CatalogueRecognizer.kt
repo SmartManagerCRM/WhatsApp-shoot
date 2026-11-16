@@ -15,6 +15,7 @@ import com.smartmanager.whatsappshoot.logic.LatestImage
 import com.smartmanager.whatsappshoot.logic.NoteIconLocator
 import com.smartmanager.whatsappshoot.logic.NoteLocator
 import com.smartmanager.whatsappshoot.logic.OcrBox
+import com.smartmanager.whatsappshoot.logic.OrderItems
 import com.smartmanager.whatsappshoot.logic.OrderPlan
 import com.smartmanager.whatsappshoot.logic.OrderSplitter
 import com.smartmanager.whatsappshoot.logic.NoteRegion
@@ -99,6 +100,17 @@ class CatalogueRecognizer(
             "catalogue: read ${text.length} characters, ${products.size} products, matched=${product != null}, " +
                 "order=${details?.orderNumber != null} date=${details?.date != null} branch=${details?.branch != null} notes=${details?.notes != null}",
         )
+        // One order page listing several items: each catalogue product named by an item line is sent, all with this order's details and notes.
+        val itemProducts = OrderItems.products(scan.lines, products)
+        if (itemProducts.size >= 2) {
+            ActivityLog.add("catalogue: ${itemProducts.size} items of this order name catalogue products: each is sent with the order details")
+            val lab = labels()
+            val plans = itemProducts.map { OrderPlan(it, CaptionBuilder.build(it, settings.captionText, settings.captionIncludeDescription, details, lab)) }
+            val firstPicture = store.imageFile(plans.first().product)
+            if (!firstPicture.exists()) return ProductResolution.Failed("product picture missing")
+            val firstPublished = publisher.publish(plans.first().product, firstPicture) ?: return ProductResolution.Failed("could not put the product picture in the gallery as the newest photo (${publisher.lastFailure})")
+            return ProductResolution.Multi(ProductResolution.Matched(plans.first().product, firstPublished, plans.first().caption), plans.drop(1))
+        }
         val caption = CaptionBuilder.build(product, settings.captionText, settings.captionIncludeDescription, details, labels())
         if (product == null) return if (details != null) ProductResolution.TextOnly(caption) else ProductResolution.NoMatch
         val picture = store.imageFile(product)
@@ -131,7 +143,7 @@ class CatalogueRecognizer(
     private class BandRead(val text: String, val details: ScannedDetails)
 
     /** Everything read on a picture: the text, and whether a notes heading/icon was found (then [note] is the note there, which may be null if that box is empty). [bands] is non-empty for a multi-order photo. */
-    private class Scan(val text: String, val noteHeadingFound: Boolean, val note: String?, val bands: List<BandRead> = emptyList())
+    private class Scan(val text: String, val noteHeadingFound: Boolean, val note: String?, val bands: List<BandRead> = emptyList(), val lines: List<OcrBox> = emptyList())
 
     /** The details of [scan]: found in the text, except the note when a notes heading was located on the picture (the strip under it is more reliable than neighbouring text). */
     private fun detailsOf(scan: Scan): ScannedDetails {
@@ -264,7 +276,7 @@ class CatalogueRecognizer(
         val wholeText = await(activeWhole, arabicReader, "arabic reading") ?: ""
         if (latin == null && wholeText.isBlank()) return null
         val text = listOfNotNull(latin?.text?.takeIf { it.isNotBlank() }, wholeText.takeIf { it.isNotBlank() }).joinToString("\n")
-        return Scan(text, outcome?.found == true, outcome?.note)
+        return Scan(text, outcome?.found == true, outcome?.note, lines = latin?.lines ?: emptyList())
     }
 
     /** The strip of [bmp] under a notes heading, enlarged so small Arabic print is big enough to be read. */

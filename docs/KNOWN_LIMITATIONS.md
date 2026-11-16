@@ -158,3 +158,6 @@ The v1.9.1 log from the phone said `read as one order (20 text lines; no repeate
 
 ### v1.9.3: longer activity log
 The activity log kept only the last 120 lines; one send writes about 60, so by the time the report was copied the two-order attempt had been pushed out and only later, unrelated runs were left. It now keeps the last 600 lines.
+
+### v1.9.4: several items on ONE order page
+The v1.9.3 layout line showed the photo is a single order page (one "Order Status", one "Notes", one "Order Summary") with two item lines under "Order Summary" ("1X ..." and "1X ..."), not two orders. The product match took only the better-scoring product of the two. Now every item line that starts with a quantity (1X, 2x, 3 x ...) and names a catalogue product gives one message (that product's picture and price/description + the order's number, date, branch and notes + your Home text), sent one after the other in the same chat; each product only once. Item lines the text reader cannot read, or whose product is not in the catalogue, are skipped. Diagnostics: `catalogue: N items of this order name catalogue products …`. Not verified on the phone.

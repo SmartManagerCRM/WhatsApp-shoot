@@ -17,20 +17,45 @@ object OrderSplitter {
     /** A photo is never split into more orders than this (a long list is read in this many pieces at most). */
     const val MAX_ORDERS = 8
 
+    private val STATUS = Regex("(?i)^\\W*order\\s+status\\b.{0,12}$")
+    private val SUMMARY = Regex("(?i)^\\W*order\\s+summary\\b.{0,6}$")
+    private val TOTAL = Regex("(?i)^\\W*total\\b.{0,20}$")
+
+    /**
+     * Order numbers are tried first. Many order pages show no usable number (a 4-digit code, or none), so when fewer than two different numbers are found the
+     * repeated headings "Order Status", then "Order Summary", mark the orders instead; the line "Total" that closes an order tells where the next order's own header
+     * (date, shop, number) begins.
+     */
     fun split(lines: List<OcrBox>, imageHeight: Int): List<OrderBand> {
         val sorted = lines.sortedBy { it.top }
-        val anchors = ArrayList<Pair<OcrBox, String>>()
+        val numbered = ArrayList<Pair<OcrBox, String>>()
         for (l in sorted) {
             val no = DetailExtractor.extract(l.text).orderNumber ?: continue
             if (no.count { it.isDigit() } < MIN_DIGITS) continue
             // The same number again (e.g. in a header and a footer of the same order) is not a new order.
-            if (anchors.any { it.second == no }) continue
-            anchors += l to no
+            if (numbered.any { it.second == no }) continue
+            numbered += l to no
         }
-        if (anchors.size < 2) return emptyList()
-        val used = anchors.take(MAX_ORDERS)
+        if (numbered.size >= 2) return bands(sorted, numbered.take(MAX_ORDERS), imageHeight, marginLines = MARGIN_LINES, totalRule = false)
+        for ((regex, margin) in listOf(STATUS to 9.0, SUMMARY to 18.0)) {
+            val marks = sorted.filter { regex.matches(it.text.trim()) }
+            // Headings that sit right next to each other belong to the same order.
+            val spread = ArrayList<OcrBox>()
+            for (m in marks) if (spread.isEmpty() || m.top - spread.last().bottom > Math.max(m.height, 1) * 12) spread += m
+            if (spread.size >= 2) return bands(sorted, spread.take(MAX_ORDERS).mapIndexed { i, l -> l to "#${i + 1}" }, imageHeight, margin, totalRule = true)
+        }
+        return emptyList()
+    }
+
+    private fun bands(sorted: List<OcrBox>, used: List<Pair<OcrBox, String>>, imageHeight: Int, marginLines: Double, totalRule: Boolean): List<OrderBand> {
         val starts = used.mapIndexed { i, (l, _) ->
-            if (i == 0) 0 else Math.max(l.top - (Math.max(l.height, 1) * MARGIN_LINES).toInt(), used[i - 1].first.bottom)
+            if (i == 0) return@mapIndexed 0
+            val prev = used[i - 1].first
+            val byMargin = Math.max(l.top - (Math.max(l.height, 1) * marginLines).toInt(), prev.bottom)
+            if (!totalRule) return@mapIndexed byMargin
+            // The last "Total" line between the two headings closes the previous order.
+            val total = sorted.lastOrNull { it.top >= prev.bottom && it.bottom <= l.top && TOTAL.matches(it.text.trim()) }
+            if (total != null) Math.min(total.bottom + Math.max(total.height, 1), l.top) else byMargin
         }
         return used.mapIndexed { i, (_, no) ->
             val top = starts[i]

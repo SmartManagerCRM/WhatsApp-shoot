@@ -38,4 +38,28 @@ class OrderSplitterTest {
         val lines = (0 until 12).map { box("Order #${1000000 + it}", 100 + it * 300) }
         assertEquals(OrderSplitter.MAX_ORDERS, OrderSplitter.split(lines, 5000).size)
     }
+
+    private fun page(off: Int, tag: String) = listOf(
+        box("Mrsool", off + 100), box("Today | 01:23 PM", off + 150), box("3596", off + 200), box("Order Status", off + 300),
+        box("Order Summary", off + 700), box("1X $tag", off + 780), box("SubTotal", off + 900), box("Total", off + 950),
+    )
+
+    @Test fun ordersWithoutUsableNumbersAreSplitAtTheirStatusHeadings() {
+        val b = OrderSplitter.split(page(0, "A11") + page(1100, "L6"), 2300)
+        assertEquals(2, b.size)
+        assertTrue(b[0].text.contains("1X A11")); assertTrue(!b[0].text.contains("1X L6"))
+        assertTrue(b[1].text.contains("1X L6")); assertTrue("the second order keeps its own header", b[1].text.contains("Today"))
+        assertTrue(!b[1].text.contains("1X A11"))
+    }
+
+    @Test fun oneStatusHeadingIsOneOrder() {
+        assertTrue(OrderSplitter.split(page(0, "A11"), 1200).isEmpty())
+    }
+
+    @Test fun summaryHeadingsSplitWhenThereIsNoStatus() {
+        val l = listOf(box("Order Summary", 100), box("1X A11", 180), box("Total", 400), box("Mrsool", 520), box("Order Summary", 700), box("1X L6", 780), box("Total", 1000))
+        val b = OrderSplitter.split(l, 1200)
+        assertEquals(2, b.size)
+        assertTrue(b[1].text.contains("Mrsool")); assertTrue(b[1].text.contains("1X L6")); assertTrue(!b[0].text.contains("1X L6"))
+    }
 }

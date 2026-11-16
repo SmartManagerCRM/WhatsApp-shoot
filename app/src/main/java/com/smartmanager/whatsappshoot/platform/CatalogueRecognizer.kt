@@ -233,6 +233,7 @@ class CatalogueRecognizer(
             return Scan(latin?.text ?: "", false, null, reads)
         }
 
+        if (products.isNotEmpty() && latin != null) ActivityLog.add("catalogue: read as one order (${latin.lines.size} text lines; no repeated order number or Order Status/Summary heading)")
         val needWhole = arabic && run {
             val t = latin?.text ?: ""
             val matched = products.isEmpty() || (t.isNotBlank() && ProductMatcher.match(t, products) != null)

@@ -342,6 +342,7 @@ class AutomationController(
         when (r) {
             is SelectionResult.Found -> {
                 val image = r.image
+                ActivityLog.add("scanned photo: folder=${image.candidate.folder} mime=${image.candidate.mime}")
                 // An explicit user request bypasses the repeat-send policy; automatic triggers obey it.
                 val decision = if (userInitiated) SendDecision.Proceed else SendPolicy.decide(settings().sendBehavior, captureIdentity, image, ledger)
                 when (decision) {

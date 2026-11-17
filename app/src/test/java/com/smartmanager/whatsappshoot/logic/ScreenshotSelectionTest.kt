@@ -135,11 +135,13 @@ class ScreenshotSelectionTest {
         assertTrue(sel.selectLatest(listOf("NoSuchFolder")) is SelectionResult.NoScreenshots)
     }
 
-    @Test fun whatsAppsOwnCopiesAreNeverTheNewestPhoto() {
+    @Test fun whatsAppsSentCopiesAreNeverTheNewestPhoto_butReceivedPhotosAre() {
         val clock = FakeClock(); val src = FakeSource(clock)
         src.add(1, c = cand(1, clock, ageMs = 60_000, folder = "Pictures/Screenshots/"))
         src.add(2, c = cand(2, clock, ageMs = 10_000, folder = "Android/media/com.whatsapp.w4b/WhatsApp Business/Media/WhatsApp Business Images/Sent/"))
-        src.add(3, c = cand(3, clock, ageMs = 5_000, folder = "WhatsApp/Media/WhatsApp Images/"))
+        src.add(3, c = cand(3, clock, ageMs = 5_000, folder = "WhatsApp/Media/WhatsApp Images/Sent/"))
         assertEquals(1L, ((ScreenshotSelector(src, clock).selectLatest(emptyList(), anyFolder = true)) as SelectionResult.Found).image.candidate.id)
+        src.add(4, c = cand(4, clock, ageMs = 2_000, folder = "WhatsApp/Media/WhatsApp Images/"))
+        assertEquals("a photo received in WhatsApp is a normal photo", 4L, ((ScreenshotSelector(src, clock).selectLatest(emptyList(), anyFolder = true)) as SelectionResult.Found).image.candidate.id)
     }
 }

@@ -143,6 +143,7 @@ class ScreenshotSelector(
             .filter { it.mime?.lowercase() in ImageFormats.SUPPORTED_MIME }
             .filter { !it.pending && !it.trashed && it.sizeBytes > 0 }
             .filter { it.displayName?.startsWith(ProductPhotos.PREFIX) != true } // temporary copies of catalogue pictures are never "the newest photo"
+            .filter { !isWhatsAppManaged(it.folder) } // WhatsApp keeps its own copy of every photo it sends or receives: that copy must never become "the newest photo" (it made the app send again)
             .filter { it.effectiveDateMs <= now - minAgeMs }
             .sortedWith(compareByDescending<MediaCandidate> { it.effectiveDateMs }.thenByDescending { it.dateModifiedSec }.thenByDescending { it.id })
             .toList()
@@ -157,6 +158,10 @@ class ScreenshotSelector(
         }
         return SelectionResult.AllUnreadable
     }
+
+    /** True for pictures inside WhatsApp's own media folders ("WhatsApp/Media/...", "WhatsApp Business/Media/..."). */
+    private fun isWhatsAppManaged(folder: String?): Boolean =
+        folder != null && folder.replace('\\', '/').split('/').any { it.startsWith("whatsapp", ignoreCase = true) || it.startsWith("com.whatsapp", ignoreCase = true) }
 
     private fun hashOf(c: MediaCandidate): String? {
         val md = MessageDigest.getInstance("SHA-256")

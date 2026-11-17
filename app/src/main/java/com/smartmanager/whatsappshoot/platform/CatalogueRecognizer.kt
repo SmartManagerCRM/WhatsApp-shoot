@@ -76,7 +76,16 @@ class CatalogueRecognizer(
         worker.execute {
             val r = try {
                 val picture = store.imageFile(product)
-                if (picture.exists()) publisher.publish(product, picture) else null
+                var out: LatestImage? = null
+                if (picture.exists()) {
+                    // Up to three tries: each one is only accepted if the copy is still the newest picture a moment after it was made.
+                    for (attempt in 1..3) {
+                        out = publisher.publish(product, picture, settleMs = 700)
+                        if (out != null) break
+                        Thread.sleep(1_200)
+                    }
+                }
+                out
             } catch (e: Throwable) { ActivityLog.add("catalogue: publishing failed (${e.javaClass.simpleName})"); null }
             if (r == null) ActivityLog.add("catalogue: could not publish the product picture (${publisher.lastFailure})")
             main.post { callback(r) }

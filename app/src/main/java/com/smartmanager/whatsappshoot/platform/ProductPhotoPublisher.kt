@@ -62,7 +62,7 @@ class ProductPhotoPublisher(private val context: Context) {
     }
 
     /** Returns the published picture, or null if it could not be created or is not provably the newest image. Call off the main thread. */
-    fun publish(product: Product, picture: File): LatestImage? {
+    fun publish(product: Product, picture: File, settleMs: Long = 0): LatestImage? {
         lastFailure = ""
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return fail("Android 10 or newer is needed")
         sweep(minAgeSec = 60)
@@ -91,6 +91,13 @@ class ProductPhotoPublisher(private val context: Context) {
             }
             val why = notNewestBecause(c)
             if (why != null) throw IllegalStateException(why)
+            if (settleMs > 0) {
+                // Another app (WhatsApp saving its own copy of what it just sent) may still be touching the media library: check again after a short wait.
+                Thread.sleep(settleMs)
+                val again = row(uri, name) ?: throw IllegalStateException("row missing")
+                notNewestBecause(again)?.let { throw IllegalStateException("after ${settleMs} ms: $it") }
+                c = again
+            }
             main.postDelayed({ cleaner.execute { sweep(minAgeSec = 100) } }, CLEANUP_DELAY_MS)
             return LatestImage(c, key = "product-${product.id}-$now", skippedNewer = false)
         } catch (e: Exception) {

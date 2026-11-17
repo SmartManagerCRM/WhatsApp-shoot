@@ -51,6 +51,9 @@ class AutomationController(
     private var pendingCaption: String? = null
     /** Orders of a multi-order photo still to be sent after the one now in flight (each is sent in this same chat visit). */
     private var pendingOrders: List<OrderPlan> = emptyList()
+    /** The chat that was just sent to: it is not sent to again until the user has been to the chat list, to another chat, or away from WhatsApp for a while. */
+    private var sentChatKey: String? = null
+    private var leftWhatsAppAtMs = 0L
     private var activeCaption = ""
     private var shareTimeout: Cancellable? = null
     private var captureEpoch = 0
@@ -105,6 +108,7 @@ class AutomationController(
     fun stop() {
         captureEpoch++; disarmWatchdog()
         pendingOrders = emptyList()
+        sentChatKey = null
         shareEngine = null; attachEngine = null
         shareTimeout?.cancel(); shareTimeout = null
         cancelPending() // emergency stop: nothing further is clicked
@@ -156,6 +160,7 @@ class AutomationController(
     private fun onLeftWhatsApp() {
         if (shareFlowActive) return // a flow in progress may pass through system pickers; its own timeout ends it
         prefetchedThisVisit = false
+        if (leftWhatsAppAtMs == 0L) leftWhatsAppAtMs = clock.nowMs()
         cancelPending()
         guard.conversationLeft()
         currentIdentity = null
@@ -165,6 +170,8 @@ class AutomationController(
 
     private fun onWhatsApp(c: ScreenClassification) {
         machine.dispatch(AutomationEvent.WHATSAPP_FOREGROUND)
+        if (leftWhatsAppAtMs != 0L) { if (clock.nowMs() - leftWhatsAppAtMs > AWAY_RESETS_SENT_MS) sentChatKey = null; leftWhatsAppAtMs = 0L }
+        if (c.kind == ScreenKind.CHAT_LIST) sentChatKey = null
         maybePrefetch()
         when (c.kind) {
             ScreenKind.CONVERSATION -> onConversation(c)
@@ -208,6 +215,7 @@ class AutomationController(
         machine.dispatch(AutomationEvent.CONVERSATION_OPENED)
         if (machine.state != AutomationState.CONVERSATION_DETECTED) return // workflow in progress: ignore
         if (id != currentIdentity) { // switched conversation (or first sight)
+            if (sentChatKey != null && id.key != sentChatKey) sentChatKey = null
             cancelPending()
             guard.conversationLeft()
             currentIdentity = id
@@ -223,6 +231,7 @@ class AutomationController(
         val st = settings()
         if (st.mode == CaptureMode.MANUAL || !st.automaticCaptureEnabled) return
         if (pendingAutoCapture != null || guard.currentVisitHandled || captureDenied) return
+        if (sentChatKey != null && currentIdentity?.key == sentChatKey) return // already sent here: once per opening of the chat
         pendingAutoCapture = scheduler.schedule(st.effectiveDelayMs) {
             pendingAutoCapture = null
             if (!startCapture(userInitiated = false)) ActivityLog.add("auto start declined: state=${machine.state} licensed=${isLicensed()} paused=${machine.paused}")
@@ -588,8 +597,8 @@ class AutomationController(
         if ((o == ShareOutcome.SENT_CONFIRMED || o == ShareOutcome.SENT_UNCONFIRMED) && pendingOrders.isNotEmpty()) { sendNextOrder(); return }
         when (o) {
             ShareOutcome.ROW_SELECTED -> { record(LedgerStatus.PREPARED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.ATTACHMENT_READY) }
-            ShareOutcome.SENT_CONFIRMED -> { record(LedgerStatus.SENT_CONFIRMED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.SEND_CONFIRMED) }
-            ShareOutcome.SENT_UNCONFIRMED -> { record(LedgerStatus.SENT_UNCONFIRMED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.SEND_UNCONFIRMED) }
+            ShareOutcome.SENT_CONFIRMED -> { sentChatKey = shotIdentity?.key ?: currentIdentity?.key; record(LedgerStatus.SENT_CONFIRMED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.SEND_CONFIRMED) }
+            ShareOutcome.SENT_UNCONFIRMED -> { sentChatKey = shotIdentity?.key ?: currentIdentity?.key; record(LedgerStatus.SENT_UNCONFIRMED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.SEND_UNCONFIRMED) }
             ShareOutcome.ABORT_AMBIGUOUS -> attachmentFailed(StatusMessage.AUTO_SEND_AMBIGUOUS)
             ShareOutcome.ABORT_NOT_FOUND -> attachmentFailed(StatusMessage.AUTO_SEND_NOT_FOUND)
             ShareOutcome.ABORT_RECIPIENT_MISMATCH -> attachmentFailed(StatusMessage.AUTO_SEND_RECIPIENT_MISMATCH)
@@ -612,6 +621,9 @@ class AutomationController(
         val base = baselineOutgoing
         baselineOutgoing = currentOutgoing?.takeIf { base == null || it > base } ?: base?.plus(1)
         ActivityLog.add("next order: ${pendingOrders.size} more after this one (timing: ${sinceVisit()} ms after the chat appeared)")
+        // WhatsApp keeps finishing its own copy of the photo just sent for a few seconds: the next picture is published after that, so it is the newest by every date.
+        scheduler.schedule(NEXT_ORDER_GAP_MS) {
+        if (epoch != captureEpoch || machine.state != AutomationState.PREPARING_ATTACHMENT) return@schedule
         products.publish(plan.product) { published ->
             if (epoch != captureEpoch || machine.state != AutomationState.PREPARING_ATTACHMENT) return@publish
             if (published == null) {
@@ -624,6 +636,8 @@ class AutomationController(
             activeCaption = plan.caption
             attachEngine = AttachFlowEngine(baselineOutgoing, clock, attachLanding, activeCaption)
             shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
+            notifyChange() // wakes the screen watcher for the new flow
+        }
         }
     }
 
@@ -697,6 +711,8 @@ class AutomationController(
         const val ATTACH_FLOW_TIMEOUT_MS = 40_000L
         const val CAPTURE_TIMEOUT_MS = 26_000L
         const val PRODUCT_TIMEOUT_MS = 18_000L
+        const val NEXT_ORDER_GAP_MS = 3_500L
+        const val AWAY_RESETS_SENT_MS = 30_000L
     }
 }
 

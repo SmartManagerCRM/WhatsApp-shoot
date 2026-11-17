@@ -161,11 +161,13 @@ class CatalogueTest {
         assertTrue(r.controller.attachFlowActive)
         assertEquals("Watch Pro 2\n450 TND\n\nHello", r.controller.captionText())
         r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED)
+        r.scheduler.advance(AutomationController.NEXT_ORDER_GAP_MS + 10)
         assertEquals(listOf("b2"), rec.published)
         assertTrue("the second order starts at once in the same chat", r.controller.attachFlowActive)
         assertEquals("Order no.: 2\n\nRed bag", r.controller.captionText())
         assertEquals(TilePlan(verified = true, skip = 0), r.controller.tilePlan())
         r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED)
+        r.scheduler.advance(AutomationController.NEXT_ORDER_GAP_MS + 10)
         assertEquals(listOf("b2", "c3"), rec.published)
         assertEquals("Order no.: 3\n\nGreen hat", r.controller.captionText())
         r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED)
@@ -179,8 +181,27 @@ class CatalogueTest {
         rec.failPublish = true
         r.open("Alice", outgoing = 4)
         r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED)
+        r.scheduler.advance(AutomationController.NEXT_ORDER_GAP_MS + 10)
         assertFalse(r.controller.attachFlowActive)
         assertEquals("the third is not tried after the second failed", listOf("b2"), rec.published)
+    }
+
+    @Test fun afterASend_theSameChatIsNotSentToAgainUntilTheUserHasBeenAway() {
+        val rec = FakeRecognizer(ProductResolution.NoMatch); val r = rig(rec)
+        r.settings = r.settings.copy(sendBehavior = SendBehavior.EVERY_CHAT_OPEN)
+        r.open("Alice", outgoing = 4)
+        assertEquals(1, rec.calls)
+        r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED)
+        r.controller.dismiss()
+        // a transient non-WhatsApp window (a system picker) and back to the same chat: still the same opening
+        r.observer.screen = ScreenClassification(ScreenKind.NOT_WHATSAPP)
+        r.controller.onScreen(ScreenSnapshot("com.android.documentsui"))
+        r.open("Alice", outgoing = 5)
+        r.scheduler.advance(5_000)
+        assertEquals("no second send for the same opening of the chat", 1, rec.calls)
+        // another chat is a new opportunity, and coming back to Alice afterwards too
+        r.open("Bob", outgoing = 1); r.scheduler.advance(5_000)
+        assertEquals(2, rec.calls)
     }
 
     @Test fun noMatch_sendsTheNewestPhotoWithJustYourText() {

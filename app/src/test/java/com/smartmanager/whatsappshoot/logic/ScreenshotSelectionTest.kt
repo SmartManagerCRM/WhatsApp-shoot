@@ -135,6 +135,20 @@ class ScreenshotSelectionTest {
         assertTrue(sel.selectLatest(listOf("NoSuchFolder")) is SelectionResult.NoScreenshots)
     }
 
+    @Test fun whatsAppFolderPicturesAddedWhileThisAppSent_areNotTheNewestPhoto() {
+        val clock = FakeClock(); val src = FakeSource(clock)
+        val wa = "Android/media/com.whatsapp.w4b/WhatsApp Business/Media/WhatsApp Business Images/"
+        val order = cand(1, clock, ageMs = 120_000, folder = wa)
+        val ownCopy = cand(2, clock, ageMs = 10_000, folder = wa)
+        src.add(1, c = order); src.add(2, c = ownCopy)
+        val sel = ScreenshotSelector(src, clock)
+        assertEquals("before anything was sent the newest WhatsApp-folder picture is a normal photo", 2L, ((sel.selectLatest(emptyList(), anyFolder = true)) as SelectionResult.Found).image.candidate.id)
+        sel.ignoreWhatsAppCopiesAdded(ownCopy.dateAddedSec * 1000 - 5_000, ownCopy.dateAddedSec * 1000 + 60_000)
+        assertEquals("the copy WhatsApp made of the sent photo is skipped, the order photo is scanned again", 1L, ((sel.selectLatest(emptyList(), anyFolder = true)) as SelectionResult.Found).image.candidate.id)
+        src.add(3, c = cand(3, clock, ageMs = 10_000, folder = "Pictures/Screenshots/"))
+        assertEquals("pictures outside WhatsApp folders are never hidden by the range", 3L, ((sel.selectLatest(emptyList(), anyFolder = true)) as SelectionResult.Found).image.candidate.id)
+    }
+
     @Test fun whatsAppsSentCopiesAreNeverTheNewestPhoto_butReceivedPhotosAre() {
         val clock = FakeClock(); val src = FakeSource(clock)
         src.add(1, c = cand(1, clock, ageMs = 60_000, folder = "Pictures/Screenshots/"))

@@ -53,6 +53,9 @@ interface LatestScreenshotProvider {
 
     /** What the phone can say about videos newer than [image] (see [TilePlan]). Default: nothing can be verified. */
     fun tilePlan(image: LatestImage): TilePlan = TilePlan(verified = false, skip = 0)
+
+    /** WhatsApp saves its own copy of every photo this app sends, among the photos it receives: pictures of WhatsApp folders added between these times are not "the newest photo". */
+    fun ignoreWhatsAppCopies(fromMs: Long, toMs: Long) {}
 }
 
 enum class GalleryRoute {

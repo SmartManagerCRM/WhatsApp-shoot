@@ -44,6 +44,7 @@ class FakeLatestProvider(private val source: FakeSource, private val repo: Scree
     var route = GalleryRoute.ALBUM
     var plan = TilePlan(verified = false, skip = 0)
     override fun tilePlan(image: LatestImage) = plan
+    override fun ignoreWhatsAppCopies(fromMs: Long, toMs: Long) = selector.ignoreWhatsAppCopiesAdded(fromMs, toMs)
     var newestOverall: Boolean
         get() = route == GalleryRoute.LANDING
         set(v) { route = if (v) GalleryRoute.LANDING else GalleryRoute.ALBUM }

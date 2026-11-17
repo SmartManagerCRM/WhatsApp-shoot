@@ -121,6 +121,21 @@ class ScreenshotSelector(
     private val minAgeMs: Long = MIN_AGE_MS,
     private val maxCandidates: Int = MAX_CANDIDATES,
 ) {
+    // Time ranges (DATE_ADDED, ms) in which WhatsApp saved its own copy of what this app just sent. WhatsApp keeps those copies in the same folder as the photos it
+    // receives, so only the time tells them apart: a WhatsApp-folder picture added inside such a range is never "the newest photo" (otherwise it was sent again).
+    private val ownSendRanges = ArrayList<LongRange>()
+
+    @Synchronized fun ignoreWhatsAppCopiesAdded(fromMs: Long, toMs: Long) {
+        if (toMs <= fromMs) return
+        ownSendRanges += fromMs..toMs
+        while (ownSendRanges.size > 100) ownSendRanges.removeAt(0)
+    }
+
+    @Synchronized private fun inOwnSendRange(c: MediaCandidate): Boolean {
+        val added = c.dateAddedSec * 1000
+        return isWhatsAppFolder(c.folder) && ownSendRanges.any { added in it }
+    }
+
     /** @param anyFolder take the newest photo of the whole phone instead of looking in the configured folders. */
     fun selectLatest(folders: List<String>, anyFolder: Boolean = false): SelectionResult {
         val names = if (anyFolder) emptyList() else ScreenshotFolderMatcher.cleanNames(folders)
@@ -143,6 +158,7 @@ class ScreenshotSelector(
             .filter { it.mime?.lowercase() in ImageFormats.SUPPORTED_MIME }
             .filter { !it.pending && !it.trashed && it.sizeBytes > 0 }
             .filter { it.displayName?.startsWith(ProductPhotos.PREFIX) != true } // temporary copies of catalogue pictures are never "the newest photo"
+            .filter { !inOwnSendRange(it) }
             .filter { !isWhatsAppSentCopy(it.folder) } // WhatsApp keeps its own copy of every photo it SENDS ("...Sent" folders): that copy must never become "the newest photo" (it made the app send again). Received photos stay eligible.
             .filter { it.effectiveDateMs <= now - minAgeMs }
             .sortedWith(compareByDescending<MediaCandidate> { it.effectiveDateMs }.thenByDescending { it.dateModifiedSec }.thenByDescending { it.id })
@@ -158,6 +174,9 @@ class ScreenshotSelector(
         }
         return SelectionResult.AllUnreadable
     }
+
+    private fun isWhatsAppFolder(folder: String?): Boolean =
+        folder != null && folder.replace('\\', '/').split('/').any { it.startsWith("whatsapp", ignoreCase = true) || it.startsWith("com.whatsapp", ignoreCase = true) }
 
     /** True for WhatsApp's copies of what it sent ("WhatsApp/Media/WhatsApp Images/Sent/", "WhatsApp Business/Media/.../Sent/"). */
     private fun isWhatsAppSentCopy(folder: String?): Boolean {

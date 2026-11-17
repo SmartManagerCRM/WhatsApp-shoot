@@ -140,6 +140,8 @@ class MediaStoreLatestProvider(
 ) : LatestScreenshotProvider {
     private val source = MediaStoreScreenshotSource(context)
     private val selector = ScreenshotSelector(source, clock)
+
+    override fun ignoreWhatsAppCopies(fromMs: Long, toMs: Long) = selector.ignoreWhatsAppCopiesAdded(fromMs, toMs)
     private val worker = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
 

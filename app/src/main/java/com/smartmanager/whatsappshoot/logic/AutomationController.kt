@@ -53,6 +53,7 @@ class AutomationController(
     private var pendingOrders: List<OrderPlan> = emptyList()
     /** The chat that was just sent to: it is not sent to again until the user has been to the chat list, to another chat, or away from WhatsApp for a while. */
     private var sentChatKey: String? = null
+    private var sendWindowStartMs = 0L
     private var leftWhatsAppAtMs = 0L
     private var activeCaption = ""
     private var shareTimeout: Cancellable? = null
@@ -497,6 +498,7 @@ class AutomationController(
             ActivityLog.add(if (galleryMode) "newest photo mode: plan verified=${activeTilePlan?.verified} newerVideos=${activeTilePlan?.skip}" else if (landing) "screenshot is the newest item on the phone: using the landing gallery" else "using the Screenshots album")
             attachLanding = landing
             attachEngine = AttachFlowEngine(baselineOutgoing, clock, landing, activeCaption)
+            sendWindowStartMs = clock.nowMs() - SEND_WINDOW_LEAD_MS
             shareTimeout = scheduler.schedule(ATTACH_FLOW_TIMEOUT_MS) { onShareOutcome(attachEngine?.timeout()?.outcome ?: ShareOutcome.ABORT_TIMEOUT) }
             ActivityLog.add("in-chat attach flow started (timing: ${sinceVisit()} ms after the chat appeared)")
             return
@@ -595,6 +597,7 @@ class AutomationController(
         if (machine.state != AutomationState.PREPARING_ATTACHMENT) return
         shareTimeout?.cancel(); shareTimeout = null; shareEngine = null; attachEngine = null
         ActivityLog.add("timing: flow ended $o, ${sinceVisit()} ms after the chat appeared")
+        if (sendWindowStartMs > 0) latest.ignoreWhatsAppCopies(sendWindowStartMs, clock.nowMs() + SEND_WINDOW_TAIL_MS)
         if ((o == ShareOutcome.SENT_CONFIRMED || o == ShareOutcome.SENT_UNCONFIRMED) && pendingOrders.isNotEmpty()) { sendNextOrder(); return }
         when (o) {
             ShareOutcome.ROW_SELECTED -> { record(LedgerStatus.PREPARED); machine.dispatch(AutomationEvent.ATTACHMENT_PREPARED); set(StatusMessage.ATTACHMENT_READY) }
@@ -713,6 +716,9 @@ class AutomationController(
         const val CAPTURE_TIMEOUT_MS = 26_000L
         const val PRODUCT_TIMEOUT_MS = 18_000L
         const val NEXT_ORDER_GAP_MS = 3_500L
+        /** WhatsApp's own copy of a sent photo is saved a moment after the send starts; the range that hides it runs from just before the flow to this long after it ended. */
+        const val SEND_WINDOW_LEAD_MS = 3_000L
+        const val SEND_WINDOW_TAIL_MS = 90_000L
         const val AWAY_RESETS_SENT_MS = 8_000L
     }
 }

@@ -199,9 +199,20 @@ class CatalogueTest {
         r.open("Alice", outgoing = 5)
         r.scheduler.advance(5_000)
         assertEquals("no second send for the same opening of the chat", 1, rec.calls)
-        // another chat is a new opportunity, and coming back to Alice afterwards too
-        r.open("Bob", outgoing = 1); r.scheduler.advance(5_000)
+        // leaving to the chat list and opening the same chat again is a new opening: sent again
+        r.leaveToChatList()
+        r.open("Alice", outgoing = 6); r.scheduler.advance(5_000)
         assertEquals(2, rec.calls)
+        r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED); r.controller.dismiss()
+        // being away from WhatsApp for longer than a transient window also counts
+        r.observer.screen = ScreenClassification(ScreenKind.NOT_WHATSAPP)
+        r.controller.onScreen(ScreenSnapshot("com.android.chrome"))
+        r.clock.advance(AutomationController.AWAY_RESETS_SENT_MS + 1_000)
+        r.open("Alice", outgoing = 7); r.scheduler.advance(5_000)
+        assertEquals(3, rec.calls)
+        r.controller.onShareOutcome(ShareOutcome.SENT_CONFIRMED); r.controller.dismiss()
+        r.open("Bob", outgoing = 1); r.scheduler.advance(5_000)
+        assertEquals(4, rec.calls)
     }
 
     @Test fun noMatch_sendsTheNewestPhotoWithJustYourText() {

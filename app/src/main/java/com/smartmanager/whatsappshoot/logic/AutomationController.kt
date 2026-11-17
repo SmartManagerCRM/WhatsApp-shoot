@@ -712,7 +712,7 @@ class AutomationController(
         const val CAPTURE_TIMEOUT_MS = 26_000L
         const val PRODUCT_TIMEOUT_MS = 18_000L
         const val NEXT_ORDER_GAP_MS = 3_500L
-        const val AWAY_RESETS_SENT_MS = 30_000L
+        const val AWAY_RESETS_SENT_MS = 8_000L
     }
 }
 

@@ -99,10 +99,53 @@ class ProductPhotoPublisher(private val context: Context) {
                 c = again
             }
             main.postDelayed({ cleaner.execute { sweep(minAgeSec = 100) } }, CLEANUP_DELAY_MS)
+            slotUri = uri; slotName = name; slotAt = System.currentTimeMillis()
             return LatestImage(c, key = "product-${product.id}-$now", skippedNewer = false)
         } catch (e: Exception) {
             try { resolver.delete(uri, null, null) } catch (x: Exception) { }
             return fail(e.message ?: e.javaClass.simpleName)
+        } finally {
+            if (source != picture) source.delete()
+        }
+    }
+
+    // The gallery entry made by the last publish: the next product of the same order is written INTO it (same entry, new picture, new dates), so a gallery list that
+    // WhatsApp still holds from the previous send (its first tile = this entry) shows and sends the NEW picture instead of the old one.
+    @Volatile private var slotUri: android.net.Uri? = null
+    @Volatile private var slotName: String = ""
+    @Volatile private var slotAt = 0L
+
+    /** Writes [picture] into the entry of the previous publish. Null (nothing changed that matters) when there is none, it is gone, or it is no longer the newest by every date: the caller then publishes a new entry. */
+    fun republishInto(product: Product, picture: File, settleMs: Long = 0): LatestImage? {
+        val uri = slotUri ?: return null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || System.currentTimeMillis() - slotAt > SLOT_MAX_AGE_MS) return null
+        val now = System.currentTimeMillis()
+        val source = try { withCaptureTime(picture, now, product.id) } catch (e: Exception) { picture }
+        try {
+            if (row(uri, slotName) == null) return null
+            resolver.openOutputStream(uri, "wt")?.use { out -> source.inputStream().use { it.copyTo(out, 64 * 1024) } } ?: return null
+            resolver.update(uri, ContentValues().apply { put(MediaStore.Images.Media.DATE_TAKEN, now) }, null, null)
+            var c = row(uri, slotName) ?: return null
+            repeat(4) {
+                if (c.dateTakenMs <= 0 || c.dateTakenMs < now - 2_000) {
+                    resolver.update(uri, ContentValues().apply { put(MediaStore.Images.Media.DATE_TAKEN, now) }, null, null)
+                    Thread.sleep(150)
+                    c = row(uri, slotName) ?: return null
+                }
+            }
+            notNewestBecause(c)?.let { ActivityLog.add("catalogue: reusing the gallery entry not possible ($it), making a new one"); return null }
+            if (settleMs > 0) {
+                Thread.sleep(settleMs)
+                val again = row(uri, slotName) ?: return null
+                notNewestBecause(again)?.let { ActivityLog.add("catalogue: reusing the gallery entry not possible after ${settleMs} ms ($it), making a new one"); return null }
+                c = again
+            }
+            slotAt = System.currentTimeMillis()
+            ActivityLog.add("catalogue: next product written into the existing gallery entry")
+            return LatestImage(c, key = "product-${product.id}-$now", skippedNewer = false)
+        } catch (e: Exception) {
+            ActivityLog.add("catalogue: reusing the gallery entry failed (${e.javaClass.simpleName}), making a new one")
+            return null
         } finally {
             if (source != picture) source.delete()
         }
@@ -162,5 +205,5 @@ class ProductPhotoPublisher(private val context: Context) {
         } catch (e: Exception) { }
     }
 
-    companion object { const val CLEANUP_DELAY_MS = 150_000L }
+    companion object { const val CLEANUP_DELAY_MS = 150_000L; const val SLOT_MAX_AGE_MS = 120_000L }
 }

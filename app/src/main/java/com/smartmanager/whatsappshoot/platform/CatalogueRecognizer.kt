@@ -80,7 +80,7 @@ class CatalogueRecognizer(
                 if (picture.exists()) {
                     // Up to three tries: each one is only accepted if the copy is still the newest picture a moment after it was made.
                     for (attempt in 1..3) {
-                        out = publisher.publish(product, picture, settleMs = 700)
+                        out = (if (attempt == 1) publisher.republishInto(product, picture, settleMs = 700) else null) ?: publisher.publish(product, picture, settleMs = 700)
                         if (out != null) break
                         Thread.sleep(1_200)
                     }
